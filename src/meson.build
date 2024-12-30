@@ -1,1 +1,2 @@
 subdir('canopenlinux')
+subdir('common')
