@@ -1,22 +1,3 @@
-/*
- * CANopen main program file for CANopenNode on Linux.
- *
- * @file        CO_main_basic.c
- * @author      Janez Paternoster
- * @copyright   2020 Janez Paternoster
- *
- * This file is part of <https://github.com/CANopenNode/CANopenNode>, a CANopen Stack.
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
- * file except in compliance with the License. You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software distributed under the License is
- * distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and limitations under the License.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -35,6 +16,7 @@
 #include "OD.h"
 #include "CO_error.h"
 #include "CO_epoll_interface.h"
+#include "log_prinf.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US 1000
@@ -99,11 +81,12 @@ HeartbeatNmtChangedCallback(uint8_t nodeId, uint8_t idx, CO_NMT_internalState_t 
 static void
 printUsage(char* progName) {
     printf("Usage: %s <CAN device name> [options]\n", progName);
-    printf("\n"
-           "Options:\n"
-           "  -i <Node ID>        CANopen Node-id (1..127)\n");
-    printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n"
-           "                      set to -1, then normal scheduler is used for RT thread.\n");
+    printf("\n");
+    printf("Options:\n");
+    printf("  -i <Node ID>        CANopen Node-id (1..127)\n");
+    printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n");
+    printf("                      set to -1, then normal scheduler is used for RT thread.\n");
+    printf("  -v                  Verbose logging\n");
 }
 
 int
@@ -125,7 +108,7 @@ main(int argc, char* argv[]) {
         printUsage(argv[0]);
         exit(EXIT_SUCCESS);
     }
-    while ((opt = getopt(argc, argv, "hi:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:p:v")) != -1) {
         switch (opt) {
             case 'h': {
                 printUsage(argv[0]);
@@ -136,8 +119,14 @@ main(int argc, char* argv[]) {
                 nodeIdFromArgs = (nodeIdLong < 0 || nodeIdLong > 0xFF) ? 0 : (uint8_t)strtol(optarg, NULL, 0);
                 break;
             }
-            case 'p': rtPriority = strtol(optarg, NULL, 0); break;
-            default: printUsage(argv[0]); exit(EXIT_FAILURE);
+            case 'p':
+                rtPriority = strtol(optarg, NULL, 0);
+                break;
+            case 'v':
+                log_printf_set_level(LOG_DEBUG);
+                break;
+            default:
+                printUsage(argv[0]); exit(EXIT_FAILURE);
         }
     }
 
@@ -151,6 +140,7 @@ main(int argc, char* argv[]) {
         printUsage(argv[0]);
         exit(EXIT_FAILURE);
     }
+    CO_activeNodeId = nodeIdFromArgs;
 
     if (rtPriority != -1
         && (rtPriority < sched_get_priority_min(SCHED_FIFO) || rtPriority > sched_get_priority_max(SCHED_FIFO))) {

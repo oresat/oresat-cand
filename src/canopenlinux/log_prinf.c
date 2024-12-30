@@ -20,6 +20,8 @@ char *LOG_LEVEL_STR[] = {
     "DEBUG",
 };
 
+static int log_level = LOG_INFO;
+
 void log_printf(int priority, const char* format, ...) {
     char *level = NULL;
     switch (priority) {
@@ -49,6 +51,10 @@ void log_printf(int priority, const char* format, ...) {
             break;
     }
 
+    if (priority > log_level) {
+        return;
+    }
+
     va_list args1;
     va_start(args1, format);
     va_list args2;
@@ -59,4 +65,8 @@ void log_printf(int priority, const char* format, ...) {
     va_end(args2);
 
     printf("%s: %s\n", level, buf);
+}
+
+void log_printf_set_level(int level) {
+    log_level = level;
 }
