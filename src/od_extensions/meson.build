@@ -1,4 +1,5 @@
 libodextensions_files = [
+  'ecss_time_ext.c',
   'od_ext.c',
   'os_command_ext.c',
 ]

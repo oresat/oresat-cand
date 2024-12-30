@@ -16,6 +16,7 @@
 #include "CO_error.h"
 #include "CO_epoll_interface.h"
 #include "log_prinf.h"
+#include "ecss_time_ext.h"
 #include "os_command_ext.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
@@ -163,6 +164,7 @@ main(int argc, char* argv[]) {
     }
 
     os_command_extension_init();
+    ecss_time_extension_init();
 
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
         log_printf(LOG_CRIT, DBG_ERRNO, "signal(SIGINT, sigHandler)");

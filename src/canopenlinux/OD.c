@@ -36,6 +36,8 @@ OD_ATTR_RAM OD_RAM_t OD_RAM = {
         .cob_id_server_to_client = 0x80000000,
         .node_id_of_sdo_server = 0x1,
     },
+    .x2010_scet = 0x0,
+    .x2011_utc = 0x0,
 };
 
 typedef struct {
@@ -48,6 +50,8 @@ typedef struct {
     OD_obj_record_t o_1023_os_command[4];
     OD_obj_record_t o_1200_sdo_server_parameter[4];
     OD_obj_record_t o_1280_sdo_client_parameter[4];
+    OD_obj_var_t o_2010_scet;
+    OD_obj_var_t o_2011_utc;
 } ODObjs_t;
 
 static CO_PROGMEM ODObjs_t ODObjs = {
@@ -189,6 +193,16 @@ static CO_PROGMEM ODObjs_t ODObjs = {
             .dataLength = 1
         },
     },
+    .o_2010_scet = {
+        .dataOrig = &OD_RAM.x2010_scet,
+        .attribute = ODA_SDO_RW | ODA_TRPDO | ODA_MB,
+        .dataLength = 8
+    },
+    .o_2011_utc = {
+        .dataOrig = &OD_RAM.x2011_utc,
+        .attribute = ODA_SDO_RW | ODA_TRPDO | ODA_MB,
+        .dataLength = 8
+    },
 };
 
 static OD_ATTR_OD OD_entry_t ODList[] = {
@@ -201,6 +215,8 @@ static OD_ATTR_OD OD_entry_t ODList[] = {
     {0x1023, 0x04, ODT_REC, &ODObjs.o_1023_os_command, NULL},
     {0x1200, 0x04, ODT_REC, &ODObjs.o_1200_sdo_server_parameter, NULL},
     {0x1280, 0x04, ODT_REC, &ODObjs.o_1280_sdo_client_parameter, NULL},
+    {0x2010, 0x01, ODT_VAR, &ODObjs.o_2010_scet, NULL},
+    {0x2011, 0x01, ODT_VAR, &ODObjs.o_2011_utc, NULL},
     {0x0000, 0x00, 0, NULL, NULL}
 };
 

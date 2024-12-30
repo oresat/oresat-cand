@@ -48,6 +48,8 @@ typedef struct {
         uint32_t cob_id_server_to_client;
         uint8_t node_id_of_sdo_server;
     } x1280_sdo_client_parameter;
+    uint64_t x2010_scet;
+    uint64_t x2011_utc;
 } OD_RAM_t;
 
 #ifndef OD_ATTR_RAM
@@ -69,6 +71,8 @@ extern OD_ATTR_OD OD_t *OD;
 #define OD_ENTRY_H1023 &OD->list[6]
 #define OD_ENTRY_H1200 &OD->list[7]
 #define OD_ENTRY_H1280 &OD->list[8]
+#define OD_ENTRY_H2010 &OD->list[9]
+#define OD_ENTRY_H2011 &OD->list[30]
 
 #define OD_ENTRY_H1000_DEVICE_TYPE &OD->list[0]
 #define OD_ENTRY_H1001_ERROR_REGISTER &OD->list[1]
@@ -79,5 +83,7 @@ extern OD_ATTR_OD OD_t *OD;
 #define OD_ENTRY_H1023_OS_COMMAND &OD->list[6]
 #define OD_ENTRY_H1200_SDO_SERVER_PARAMETER &OD->list[7]
 #define OD_ENTRY_H1280_SDO_CLIENT_PARAMETER &OD->list[8]
+#define OD_ENTRY_H2010_SCET &OD->list[9]
+#define OD_ENTRY_H2011_UTC &OD->list[10]
 
 #endif

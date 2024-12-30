@@ -1,4 +1,5 @@
 libcommon_files = [
+  'ecss_time.c',
   'str2buf.c',
   'system.c',
 ]
