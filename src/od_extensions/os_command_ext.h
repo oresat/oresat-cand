@@ -1,3 +1,5 @@
+#include "301/CO_ODinterface.h"
+
 #ifndef _OS_COMMAND_EXT_H_
 #define _OS_COMMAND_EXT_H_
 
@@ -15,7 +17,7 @@ typedef enum {
     OS_CMD_EXECUTING = 0xFF,
 } OS_CMD_ENUM;
 
-void os_command_extension_init(void);
-void os_command_async(void);
+void os_command_extension_init(OD_t *od);
+void os_command_extension_free(void);
 
 #endif

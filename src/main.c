@@ -163,8 +163,8 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    os_command_extension_init();
-    ecss_time_extension_init();
+    os_command_extension_init(OD);
+    ecss_time_extension_init(OD);
 
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
         log_printf(LOG_CRIT, DBG_ERRNO, "signal(SIGINT, sigHandler)");
@@ -286,7 +286,6 @@ main(int argc, char* argv[]) {
             CO_epoll_wait(&epMain);
             CO_epoll_processMain(&epMain, CO, false, &reset);
             CO_epoll_processLast(&epMain);
-            os_command_async();
         }
     }
 
@@ -295,6 +294,8 @@ main(int argc, char* argv[]) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
         exit(EXIT_FAILURE);
     }
+
+    os_command_extension_free();
 
     CO_epoll_close(&epRT);
     CO_epoll_close(&epMain);

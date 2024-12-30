@@ -1,5 +1,4 @@
-#include "CANopen.h"
-#include "OD.h"
+#include "301/CO_ODinterface.h"
 #include "ecss_time.h"
 #include "ecss_time_ext.h"
 
@@ -45,7 +44,12 @@ static OD_extension_t utc_ext = {
     .write = ecss_utc_write,
 };
 
-void ecss_time_extension_init(void) {
-    OD_extension_init(OD_ENTRY_H2010, &scet_ext);
-    OD_extension_init(OD_ENTRY_H2011, &utc_ext);
+void ecss_time_extension_init(OD_t *od) {
+    OD_entry_t *entry;
+
+    entry = OD_find(od, 0x2010);
+    OD_extension_init(entry, &scet_ext);
+
+    entry = OD_find(od, 0x2011);
+    OD_extension_init(entry, &utc_ext);
 }
