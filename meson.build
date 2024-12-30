@@ -20,10 +20,15 @@ subdir('src')
 project_target = executable(
   meson.project_name(),
   'src/main.c',
-  link_with: libcanopenlinux,
+  link_with: [
+    libcanopenlinux,
+    libcommon,
+    libodextensions,
+  ],
   dependencies: [
-    dependency('threads'),
+    libcommon_dep,
     libcanopenlinux_dep,
+    libodextensions_dep,
   ],
   install: true,
   c_args: build_args,
@@ -38,6 +43,7 @@ project_target = executable(
   dependencies: [
     libcanopenlinux_dep,
     libcommon_dep,
+    libodextensions_dep,
     libsdoclient_dep
   ],
   install: false,
@@ -51,6 +57,21 @@ project_target = executable(
   dependencies: [
     libcanopenlinux_dep,
     libcommon_dep,
+    libodextensions_dep,
+    libsdoclient_dep
+  ],
+  install: false,
+  c_args: build_args,
+)
+
+project_target = executable(
+  'oresat-os-command',
+  'scripts/os_command_main.c',
+  link_with: libsdoclient,
+  dependencies: [
+    libcanopenlinux_dep,
+    libcommon_dep,
+    libodextensions_dep,
     libsdoclient_dep
   ],
   install: false,

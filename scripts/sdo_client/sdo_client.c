@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include "CANopen.h"
-#include "301/CO_SDOclient.h"
+#include "CO_SDOserver.h"
 #include "sdo_client.h"
 
 extern CO_t* CO;
@@ -101,12 +101,13 @@ read_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex
     }
 
     // initiate upload
-    SDO_ret = CO_SDOclientUploadInitiate(SDO_C, index, subIndex, 1000, false);
+    SDO_ret = CO_SDOclientUploadInitiate(SDO_C, index, subIndex, 1000, true);
     if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
 
     // upload data
+    size_t offset = 0;
     do {
         uint32_t timeDifference_us = 10000;
         CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
@@ -116,11 +117,15 @@ read_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex
             return abortCode;
         }
 
+        if (SDO_ret >= 0) {
+            // copy data to the user buffer (for long data function must be called several times inside the loop)
+            offset += CO_SDOclientUploadBufRead(SDO_C, &buf[offset], bufSize);
+        }
+
         usleep(timeDifference_us);
     } while (SDO_ret > 0);
 
-    // copy data to the user buffer (for long data function must be called several times inside the loop)
-    *readSize = CO_SDOclientUploadBufRead(SDO_C, buf, bufSize);
+    *readSize = offset;
 
     return CO_SDO_AB_NONE;
 }
@@ -128,7 +133,6 @@ read_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex
 CO_SDO_abortCode_t
 write_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex, uint8_t* data, size_t dataSize) {
     CO_SDO_return_t SDO_ret;
-    bool_t bufferPartial = false;
 
     // setup client (this can be skipped, if remote device is the same)
     SDO_ret = CO_SDOclient_setup(SDO_C, CO_CAN_ID_SDO_CLI + nodeId, CO_CAN_ID_SDO_SRV + nodeId, nodeId);
@@ -139,28 +143,29 @@ write_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subInde
     // initiate download
     SDO_ret = CO_SDOclientDownloadInitiate(SDO_C, index, subIndex, dataSize, 1000, false);
     if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
-        return -1;
+        return CO_SDO_AB_DATA_LOC_CTRL;
     }
 
-    // fill data
-    size_t nWritten = CO_SDOclientDownloadBufWrite(SDO_C, data, dataSize);
-    if (nWritten < dataSize) {
-        bufferPartial = true;
+    bool bufferPartial = true;
+    while (bufferPartial) {
+        // fill data
+        size_t nWritten = CO_SDOclientDownloadBufWrite(SDO_C, data, dataSize);
         // If SDO Fifo buffer is too small, data can be refilled in the loop.
+        bufferPartial = nWritten >= dataSize;
+
+        // download data
+        do {
+            uint32_t timeDifference_us = 10000;
+            CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
+
+            SDO_ret = CO_SDOclientDownload(SDO_C, timeDifference_us, false, bufferPartial, &abortCode, NULL, NULL);
+            if (SDO_ret < 0) {
+                return abortCode;
+            }
+
+            usleep(timeDifference_us);
+        } while (SDO_ret > 0);
     }
-
-    // download data
-    do {
-        uint32_t timeDifference_us = 10000;
-        CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
-
-        SDO_ret = CO_SDOclientDownload(SDO_C, timeDifference_us, false, bufferPartial, &abortCode, NULL, NULL);
-        if (SDO_ret < 0) {
-            return abortCode;
-        }
-
-        usleep(timeDifference_us);
-    } while (SDO_ret > 0);
 
     return CO_SDO_AB_NONE;
 }

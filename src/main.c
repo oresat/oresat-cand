@@ -11,12 +11,12 @@
 #include <net/if.h>
 #include <linux/reboot.h>
 #include <sys/reboot.h>
-
 #include "CANopen.h"
 #include "OD.h"
 #include "CO_error.h"
 #include "CO_epoll_interface.h"
 #include "log_prinf.h"
+#include "os_command_ext.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US 1000
@@ -162,6 +162,8 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    os_command_extension_init();
+
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
         log_printf(LOG_CRIT, DBG_ERRNO, "signal(SIGINT, sigHandler)");
         exit(EXIT_FAILURE);
@@ -282,6 +284,7 @@ main(int argc, char* argv[]) {
             CO_epoll_wait(&epMain);
             CO_epoll_processMain(&epMain, CO, false, &reset);
             CO_epoll_processLast(&epMain);
+            os_command_async();
         }
     }
 

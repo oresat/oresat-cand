@@ -1,5 +1,6 @@
 libcommon_files = [
   'str2buf.c',
+  'system.c',
 ]
 
 libcommon_includes = include_directories('.')

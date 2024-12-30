@@ -34,6 +34,10 @@ typedef struct {
     } x1018_identity;
     struct {
         uint8_t highest_index_supported;
+        uint8_t status;
+    } x1023_os_command;
+    struct {
+        uint8_t highest_index_supported;
         uint32_t cob_id_client_to_server;
         uint32_t cob_id_server_to_client;
         uint32_t node_id_od_sdo_client;
@@ -62,8 +66,9 @@ extern OD_ATTR_OD OD_t *OD;
 #define OD_ENTRY_H1014 &OD->list[3]
 #define OD_ENTRY_H1017 &OD->list[4]
 #define OD_ENTRY_H1018 &OD->list[5]
-#define OD_ENTRY_H1200 &OD->list[6]
-#define OD_ENTRY_H1280 &OD->list[7]
+#define OD_ENTRY_H1023 &OD->list[6]
+#define OD_ENTRY_H1200 &OD->list[7]
+#define OD_ENTRY_H1280 &OD->list[8]
 
 #define OD_ENTRY_H1000_DEVICE_TYPE &OD->list[0]
 #define OD_ENTRY_H1001_ERROR_REGISTER &OD->list[1]
@@ -71,7 +76,8 @@ extern OD_ATTR_OD OD_t *OD;
 #define OD_ENTRY_H1014_COB_ID_EMERGENCY_MESSAGE &OD->list[3]
 #define OD_ENTRY_H1017_PRODUCER_HEARTBEAT_TIME &OD->list[4]
 #define OD_ENTRY_H1018_IDENTITY &OD->list[5]
-#define OD_ENTRY_H1200_SDO_SERVER_PARAMETER &OD->list[6]
-#define OD_ENTRY_H1280_SDO_CLIENT_PARAMETER &OD->list[7]
+#define OD_ENTRY_H1023_OS_COMMAND &OD->list[6]
+#define OD_ENTRY_H1200_SDO_SERVER_PARAMETER &OD->list[7]
+#define OD_ENTRY_H1280_SDO_CLIENT_PARAMETER &OD->list[8]
 
 #endif
