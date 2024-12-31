@@ -29,14 +29,14 @@ int parse_int_arg(char *arg, int *value) {
     return 0;
 }
 
-static void usage(void) {
-    printf("./oresat-sdo-read <interface> <node-id> <command>\n");
+static void usage(char *name) {
+    printf("%s <interface> <node-id> <command>\n", name);
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
         printf("invalid number of args\n");
-        usage();
+        usage(argv[0]);
         return EXIT_FAILURE;
     }
 
