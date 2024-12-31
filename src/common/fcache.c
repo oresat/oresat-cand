@@ -20,7 +20,7 @@ fcache_t* fcache_init(char *dir_path)
     fcache_t *cache = (fcache_t *)malloc(sizeof(fcache_t));;
     if (cache) {
         pthread_mutex_init(&cache->mutex, NULL);
-        strncpy(cache->dir_path, dir_path, strlen(dir_path));
+        strncpy(cache->dir_path, dir_path, strlen(dir_path) + 1);
     }
     return cache;
 }

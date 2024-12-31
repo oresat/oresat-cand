@@ -160,12 +160,12 @@ static ODR_t file_transfer_write(OD_stream_t* stream, const void* buf, OD_size_t
             size_t dataWritten = 0;
             r = od_ext_write_data(stream, buf, count, countWritten, fdata->raw, PATH_LEN - 1, &dataWritten);
             if (r == ODR_OK) {
-                strncpy(fdata->file_name, basename(fdata->raw), strlen(basename(fdata->raw)));
+                strncpy(fdata->file_name, basename(fdata->raw), strlen(basename(fdata->raw)) + 1);
                 fdata->file_cached = !strncmp(fdata->raw, fdata->file_name, strlen(fdata->raw));
                 if (fdata->file_cached) {
                     path_join(fdata->cache->dir_path, fdata->file_name,  fdata->file_path, PATH_LEN);
                 } else {
-                    strncpy(fdata->file_path, fdata->raw, strlen(fdata->raw));
+                    strncpy(fdata->file_path, fdata->raw, strlen(fdata->raw) + 1);
                 }
             }
             break;
