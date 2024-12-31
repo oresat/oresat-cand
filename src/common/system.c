@@ -1,6 +1,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
+#include <limits.h>
 #include <linux/fs.h>
 #include <linux/limits.h>
 #include <stdbool.h>
@@ -9,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -71,7 +74,7 @@ int run_bash_command(char *in, char *out, int out_max_len) {
     return out_len;
 }
 
-bool is_file(const char *path) {
+bool is_file(char *path) {
     bool r = false;
     FILE *fptr = fopen(path, "r");
     if (fptr != NULL) {
@@ -81,7 +84,7 @@ bool is_file(const char *path) {
     return r;
 }
 
-bool is_file_in_dir(const char *dir_path, const char *file_name) {
+bool is_file_in_dir(char *dir_path, char *file_name) {
     bool found = false;
     DIR *d = opendir(dir_path);
     if (d == NULL) { // add all existing file to list
@@ -103,24 +106,47 @@ bool is_file_in_dir(const char *dir_path, const char *file_name) {
     return found;
 }
 
-int copy_file(const char *src, const char *dest) {
+int copy_file(char *src, char *dest) {
     int r = 0;
+
     int src_fd = open(src, O_RDONLY);
     if (src_fd == -1) {
         return -errno;
     }
-    int dest_fd = open(dest, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+    char *tmp = dest;
+    if (is_dir(dest)) {
+        char dest_tmp[PATH_MAX];
+        path_join(dest, basename(src), dest_tmp, PATH_MAX);
+        tmp = dest_tmp;
+    }
+
+    int dest_fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (dest_fd == -1) {
         close(src_fd);
         return -errno;
     }
-    r = ioctl(dest_fd, FICLONE, src_fd);
+
+    struct stat file_stat = { 0 };
+    int result = fstat(src_fd, &file_stat);
+    off_t offset = 0;
+    ssize_t written;
+    while ((result == 0) && (offset < file_stat.st_size)) {
+        written = sendfile(dest_fd, src_fd, &offset, file_stat.st_size);
+        if (written == -1) {
+            r = -errno;
+            break;
+        } else {
+            offset += written;
+        }
+    }
+
     close(src_fd);
     close(dest_fd);
     return r;
 }
 
-int move_file(const char *src, const char *dest) {
+int move_file(char *src, char *dest) {
     int r = copy_file(src, dest);
     if (r >= 0) {
         r = remove(src);
@@ -129,7 +155,7 @@ int move_file(const char *src, const char *dest) {
     return r;
 }
 
-bool is_dir(const char *path) {
+bool is_dir(char *path) {
     bool r = false;
     DIR *dir = opendir(path);
     if (dir != NULL) {
@@ -139,7 +165,7 @@ bool is_dir(const char *path) {
     return r;
 }
 
-int mkdir_path(const char *path, mode_t mode) {
+int mkdir_path(char *path, mode_t mode) {
     char temp_path[PATH_MAX];
     int r = 0;
 
@@ -166,7 +192,7 @@ int mkdir_path(const char *path, mode_t mode) {
     return r;
 }
 
-int clear_dir(const char *path) {
+int clear_dir(char *path) {
     DIR *d = opendir(path);
     if (d == NULL) { // add all existing file to list
         return -ENOENT;
@@ -195,7 +221,7 @@ int clear_dir(const char *path) {
     return r;
 }
 
-int files_in_dir(const char *path) {
+int files_in_dir(char *path) {
     DIR *d = opendir(path);
     if (d == NULL) {
         return -ENOENT;
@@ -214,7 +240,7 @@ int files_in_dir(const char *path) {
     return count;
 }
 
-int path_join(const char *head, const char *tail, char *out, uint32_t out_len) {
+int path_join(char *head, char *tail, char *out, uint32_t out_len) {
     size_t head_len = strlen(head);
     size_t tail_len = strlen(tail);
     bool head_startswith_slash = head[0] == '/';
@@ -238,7 +264,7 @@ int path_join(const char *head, const char *tail, char *out, uint32_t out_len) {
         }
     } else {
         strncpy(out, head, head_len);
-        if (out[head_len] == '/') {
+        if (head[head_len - 1] == '/') {
             out[head_len] = '\0';
         } else {
             out[head_len] = '/';
