@@ -45,7 +45,7 @@ static void* os_command_thread(void* arg) {
     (void)arg;
     running = true;
     while (running) {
-        sleep(1);
+        usleep(250000);
         if (status != OS_CMD_EXECUTING) {
             continue; // nothing todo
         }
