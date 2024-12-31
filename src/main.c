@@ -11,13 +11,16 @@
 #include <net/if.h>
 #include <linux/reboot.h>
 #include <sys/reboot.h>
+#include <wordexp.h>
 #include "CANopen.h"
 #include "OD.h"
 #include "CO_error.h"
 #include "CO_epoll_interface.h"
+#include "fcache.h"
 #include "log_prinf.h"
 #include "ecss_time_ext.h"
 #include "os_command_ext.h"
+#include "file_transfer_ext.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US 1000
@@ -163,9 +166,6 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    os_command_extension_init(OD);
-    ecss_time_extension_init(OD);
-
     if (signal(SIGINT, sigHandler) == SIG_ERR) {
         log_printf(LOG_CRIT, DBG_ERRNO, "signal(SIGINT, sigHandler)");
         exit(EXIT_FAILURE);
@@ -186,6 +186,27 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
     CANptr.epoll_fd = epRT.epoll_fd;
+
+    fcache_t* fread_cache = NULL;
+    fcache_t* fwrite_cache = NULL;
+
+    if (getuid() == 0)  {
+        fread_cache = fcache_init("/var/cache/oresat/fread");
+        fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
+    } else {
+        char tmp_path[PATH_MAX];
+        wordexp_t exp_result;
+        wordexp("~/.cache/oresat", &exp_result, 0);
+        sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fread");
+        fread_cache = fcache_init(tmp_path);
+        sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fwrite");
+        fwrite_cache = fcache_init(tmp_path);
+        wordfree(&exp_result);
+    }
+
+    os_command_extension_init(OD);
+    ecss_time_extension_init(OD);
+    file_transfer_extension_init(OD, fread_cache, fwrite_cache);
 
     while (reset != CO_RESET_APP && reset != CO_RESET_QUIT && CO_endProgram == 0) {
         uint32_t errInfo;
@@ -296,6 +317,10 @@ main(int argc, char* argv[]) {
     }
 
     os_command_extension_free();
+    file_transfer_extension_free();
+
+    fcache_free(fread_cache);
+    fcache_free(fwrite_cache);
 
     CO_epoll_close(&epRT);
     CO_epoll_close(&epMain);

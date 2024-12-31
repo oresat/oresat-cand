@@ -77,3 +77,31 @@ project_target = executable(
   install: false,
   c_args: build_args,
 )
+
+project_target = executable(
+  'oresat-fwrite',
+  'scripts/fwrite_main.c',
+  link_with: libsdoclient,
+  dependencies: [
+    libcanopenlinux_dep,
+    libcommon_dep,
+    libodextensions_dep,
+    libsdoclient_dep
+  ],
+  install: false,
+  c_args: build_args,
+)
+
+project_target = executable(
+  'oresat-fread',
+  'scripts/fread_main.c',
+  link_with: libsdoclient,
+  dependencies: [
+    libcanopenlinux_dep,
+    libcommon_dep,
+    libodextensions_dep,
+    libsdoclient_dep
+  ],
+  install: false,
+  c_args: build_args,
+)
