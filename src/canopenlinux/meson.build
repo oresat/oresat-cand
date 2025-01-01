@@ -17,6 +17,7 @@ libcanopenlinux_files = [
   'CANopenLinux/CO_error.c',
   'OD.c',
   'log_prinf.c',
+  'sdo_client.c',
 ]
 
 libcanopenlinux_includes = include_directories([

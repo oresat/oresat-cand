@@ -1,6 +1,5 @@
 libsdoclient_files = [
   'basic_node.c',
-  'sdo_client.c',
 ]
 
 libsdoclient_includes = include_directories('.')
