@@ -140,7 +140,7 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
 }
 
 CO_SDO_abortCode_t
-sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void* buf, size_t buf_size, size_t* readSize) {
+sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void* buf, size_t buf_size, size_t* read_size) {
     CO_SDO_return_t ret;
     uint8_t *data = (uint8_t *)buf;
 
@@ -171,7 +171,9 @@ sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subind
         usleep(time_diff_us);
     } while (ret > 0);
 
-    *readSize = offset;
+    if (read_size != NULL) {
+        *read_size = offset;
+    }
 
     return CO_SDO_AB_NONE;
 }
