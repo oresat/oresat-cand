@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stddef.h>
 #include <sys/time.h>
 #include "ecss_time.h"
@@ -16,16 +17,20 @@ void get_ecss_scet(ecss_scet_t *scet) {
     scet->fine = time.tv_usec;
 }
 
-void set_ecss_scet(const ecss_scet_t *scet) {
+int set_ecss_scet(const ecss_scet_t *scet) {
     if (!scet) {
-        return;
+        return -EINVAL;
     }
 
     struct timeval time;
     time.tv_sec = scet->coarse;
     time.tv_usec = scet->fine;
 
-    settimeofday(&time, NULL);
+    int r = settimeofday(&time, NULL);
+    if (r == -1) {
+        r = -errno;
+    }
+    return r;
 }
 
 void get_ecss_utc(ecss_utc_t *utc) {
@@ -41,14 +46,18 @@ void get_ecss_utc(ecss_utc_t *utc) {
     utc->us = time.tv_usec % 1000;
 }
 
-void set_ecss_utc(const ecss_utc_t *utc) {
+int set_ecss_utc(const ecss_utc_t *utc) {
     if (!utc) {
-        return;
+        return -EINVAL;
     }
 
     struct timeval time;
     time.tv_sec = utc->day * SECS_IN_DAY;
     time.tv_usec = utc->ms * 1000 + utc->us;
 
-    settimeofday(&time, NULL);
+    int r = settimeofday(&time, NULL);
+    if (r == -1) {
+        r = -errno;
+    }
+    return r;
 }

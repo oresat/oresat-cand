@@ -3,8 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <unistd.h>
 #include "301/CO_ODinterface.h"
+#include "logger.h"
 #include "system.h"
 #include "od_ext.h"
 #include "os_command_ext.h"
@@ -33,6 +35,8 @@ void os_command_extension_init(OD_t *od) {
     if (entry != NULL) {
         OD_extension_init(entry, &ext);
         pthread_create(&thread_id, NULL, os_command_thread, NULL);
+    } else {
+        log_critical("could not find os command enty 0x(%X)", OS_CMD_INDEX);
     }
 }
 
@@ -44,6 +48,13 @@ void os_command_extension_free(void) {
 static void* os_command_thread(void* arg) {
     (void)arg;
     running = true;
+    unsigned int log_size = 50;
+    char message[log_size];
+    message[log_size - 4] = '.';
+    message[log_size - 3] = '.';
+    message[log_size - 2] = '.';
+    message[log_size - 1] = '\0';
+
     while (running) {
         usleep(250000);
         if (status != OS_CMD_EXECUTING) {
@@ -53,6 +64,8 @@ static void* os_command_thread(void* arg) {
         if (strlen(command) == 0) {
             status = OS_CMD_ERROR_NO_REPLY;
         } else {
+            strncpy(message, command, MIN(strlen(command) + 1, log_size - 4));
+            log_info("running os command: %s", message);
             int reply_len = run_bash_command(command, reply, REPLY_BUFFER_LEN);
             if (reply_len < 0) {
                 status = OS_CMD_ERROR_NO_REPLY;

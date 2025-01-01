@@ -1,5 +1,6 @@
 #include "301/CO_ODinterface.h"
 #include "ecss_time.h"
+#include "logger.h"
 #include "ecss_time_ext.h"
 
 static ODR_t ecss_scet_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead) {
@@ -12,7 +13,10 @@ static ODR_t ecss_scet_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_
 
 static ODR_t ecss_scet_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
     (void)count;
-    set_ecss_scet((ecss_scet_t *)buf);
+    int r = set_ecss_scet((ecss_scet_t *)buf);
+    if (r < 0) {
+        log_error("cannot set system time to ecss scet: %d", -r);
+    }
     *countWritten = stream->dataLength;
     return ODR_OK;
 }
@@ -27,7 +31,10 @@ static ODR_t ecss_utc_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_s
 
 static ODR_t ecss_utc_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
     (void)count;
-    set_ecss_utc((ecss_utc_t *)buf);
+    int r = set_ecss_utc((ecss_utc_t *)buf);
+    if (r < 0) {
+        log_error("cannot set system time to ecss utc: %d", -r);
+    }
     *countWritten = stream->dataLength;
     return ODR_OK;
 }

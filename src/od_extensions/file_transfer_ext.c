@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/param.h>
 #include "301/CO_ODinterface.h"
+#include "logger.h"
 #include "system.h"
 #include "fcache.h"
 #include "od_ext.h"
@@ -14,6 +15,7 @@
 #define PATH_LEN 256 // PATH_MAX (4096) is a little much
 
 typedef struct {
+    char name[10];
     char raw[PATH_LEN];             // raw file name written over CAN (can be a name or path)
     char file_name[PATH_LEN];       // file basename
     char file_path[PATH_LEN];       // the src/dest file path
@@ -46,6 +48,7 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
     if (entry != NULL) {
         file_transfer_data_t *fread_data = malloc(sizeof(file_transfer_data_t));
         if (fread_data != NULL) {
+            strcpy(fread_data->name, "fread");
             fread_data->file_cached = false;
             fread_data->raw[0] = '\0';
             fread_data->file_name[0] = '\0';
@@ -56,12 +59,15 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
         }
         fread_ext.object = fread_data;
         OD_extension_init(entry, &fread_ext);
+    } else {
+        log_critical("could not find fread cache enty 0x(%X)", FREAD_CACHE_INDEX);
     }
 
     entry = OD_find(od, FWRITE_CACHE_INDEX);
     if (entry != NULL) {
         file_transfer_data_t *fwrite_data = malloc(sizeof(file_transfer_data_t));
         if (fwrite_data != NULL) {
+            strcpy(fwrite_data->name, "fwrite");
             fwrite_data->file_cached = false;
             fwrite_data->raw[0] = '\0';
             fwrite_data->file_name[0] = '\0';
@@ -72,6 +78,8 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
         }
         fwrite_ext.object = fwrite_data;
         OD_extension_init(entry, &fwrite_ext);
+    } else {
+        log_critical("could not find fwrite cache enty 0x(%X)", FWRITE_CACHE_INDEX);
     }
 }
 
@@ -106,9 +114,11 @@ void file_transfer_extension_free(void) {
 static ODR_t file_transfer_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead) {
     file_transfer_data_t *fdata = (file_transfer_data_t *)stream->object;
     if (fdata == NULL) {
+        log_error("no cache data");
         return ODR_DEV_INCOMPAT;
     }
 
+    int e;
     ODR_t r = ODR_OK;
     switch (stream->subIndex) {
         case 0:
@@ -137,14 +147,20 @@ static ODR_t file_transfer_read(OD_stream_t* stream, void* buf, OD_size_t count,
             break;
         case FILE_TRANSFER_SUBINDEX_DATA:
             if (fdata->file_name[0] == '\0') {
-                r = ODR_NO_DATA; // file name must be set first
+                log_error("%s cache file name subindex must be set first", fdata->name);
+                r = ODR_NO_DATA;
             } else {
                 if (stream->dataOffset == 0) {
                     if (!is_file(fdata->file_path)) {
+                        log_error("%s cache %s does not exist", fdata->name, fdata->file_name);
                         r = ODR_NO_DATA;
                     } else {
                         path_join("/tmp", fdata->file_name,  fdata->tmp_file_path, PATH_LEN);
-                        copy_file(fdata->file_path, fdata->tmp_file_path);
+                        e = copy_file(fdata->file_path, fdata->tmp_file_path);
+                        if (e < 0) {
+                            log_error("%s cache failed to copy %s to %s", fdata->name, fdata->file_name, fdata->tmp_file_path);
+                            r = ODR_DATA_LOC_CTRL;
+                        }
                     }
                 }
 
@@ -161,8 +177,10 @@ static ODR_t file_transfer_read(OD_stream_t* stream, void* buf, OD_size_t count,
 }
 
 static ODR_t file_transfer_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
+    int e;
     file_transfer_data_t *fdata = (file_transfer_data_t *)stream->object;
     if (fdata == NULL) {
+        log_error("no cache data");
         return ODR_DEV_INCOMPAT;
     }
 
@@ -185,6 +203,7 @@ static ODR_t file_transfer_write(OD_stream_t* stream, const void* buf, OD_size_t
         }
         case FILE_TRANSFER_SUBINDEX_DATA:
             if (fdata->file_name[0] == '\0') {
+                log_error("%s cache file name subindex must be set first", fdata->name);
                 return ODR_NO_DATA; // file name must be set first
             }
 
@@ -193,13 +212,26 @@ static ODR_t file_transfer_write(OD_stream_t* stream, const void* buf, OD_size_t
             }
             r = od_ext_write_file(stream, buf, count, countWritten, fdata->tmp_file_path, &fdata->fp);
             if (r == ODR_OK) {
-                fcache_add(fdata->cache, fdata->tmp_file_path, true);
+                if (fdata->raw[0] == '/') {
+                    if (!strncmp(fdata->raw, fdata->tmp_file_path, strlen(fdata->raw) + 1)) {
+                        e = move_file(fdata->tmp_file_path, fdata->raw);
+                        if (e < 0) {
+                            log_error("failed to move %s to %s: %d", fdata->tmp_file_path, fdata->file_name, r);
+                        }
+                    }
+                } else {
+                    e = fcache_add(fdata->cache, fdata->tmp_file_path, true);
+                    if (e < 0) {
+                        log_error("failed to move %s to %s cache: %d", fdata->tmp_file_path, fdata->name, r);
+                    }
+                }
             }
             break;
         case FILE_TRANSFER_SUBINDEX_DELETE:
             if ((bool *)buf && (fdata->file_name[0] != '\0')) {
                 fcache_delete(fdata->cache, fdata->file_name);
                 remove(fdata->tmp_file_path);
+                log_info("deleted %s", fdata->file_name);
                 fdata->raw[0] = '\0';
                 fdata->file_name[0] = '\0';
                 fdata->file_path[0] = '\0';

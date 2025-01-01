@@ -26,8 +26,8 @@ typedef union {
 } ecss_utc_t;
 
 void get_ecss_scet(ecss_scet_t *scet);
-void set_ecss_scet(const ecss_scet_t *scet);
+int set_ecss_scet(const ecss_scet_t *scet);
 void get_ecss_utc(ecss_utc_t *utc);
-void set_ecss_utc(const ecss_utc_t *utc);
+int set_ecss_utc(const ecss_utc_t *utc);
 
 #endif

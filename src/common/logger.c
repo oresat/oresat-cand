@@ -62,7 +62,7 @@ char *log_level_get_str(int level) {
 }
 
 void log_message(int level, char *file, uint32_t line, const char *fmt, ...) {
-    if (level <= log_level) {
+    if (level > log_level) {
         return;
     }
 
