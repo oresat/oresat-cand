@@ -186,13 +186,15 @@ main(int argc, char* argv[]) {
     }
     CANptr.epoll_fd = epRT.epoll_fd;
 
+    log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
+
     fcache_t* fread_cache = NULL;
     fcache_t* fwrite_cache = NULL;
-
     if (getuid() == 0)  {
         fread_cache = fcache_init("/var/cache/oresat/fread");
         fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
     } else {
+        log_warning("not running as root");
         char tmp_path[PATH_MAX];
         wordexp_t exp_result;
         wordexp("~/.cache/oresat", &exp_result, 0);
@@ -202,6 +204,8 @@ main(int argc, char* argv[]) {
         fwrite_cache = fcache_init(tmp_path);
         wordfree(&exp_result);
     }
+    log_info("fread cache path: %s", fread_cache->dir_path);
+    log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
     os_command_extension_init(OD);
     ecss_time_extension_init(OD);

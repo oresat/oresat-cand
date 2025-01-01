@@ -11,8 +11,8 @@ project(
 
 build_args = [
   '-DCO_DRIVER_CUSTOM',
-  '-DPROJECT_NAME=' + meson.project_name(),
-  '-DPROJECT_VERSION=' + meson.project_version(),
+  '-DPROJECT_NAME="' + meson.project_name() + '"',
+  '-DPROJECT_VERSION="' + meson.project_version() + '"',
 ]
 
 subdir('src')
