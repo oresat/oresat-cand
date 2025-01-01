@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "CANopen.h"
-#include "basic_node.h"
+#include "sdo_client_node.h"
 #include "parse_int.h"
 #include "sdo_client.h"
 
@@ -47,14 +47,14 @@ int main(int argc, char* argv[]) {
     uint8_t data[data_size];
     size_t read_size;
 
-    r = basic_node_start(argv[1]);
+    r = sdo_client_node_start(argv[1]);
     if (r < 0) {
         printf("node start failure: %d\n", -r);
         return EXIT_FAILURE;
     }
 
     CO_SDO_abortCode_t abort_code = sdo_read(CO->SDOclient, node_id, index, subindex, data, data_size, &read_size);
-    basic_node_stop();
+    sdo_client_node_stop();
 
 
     if (abort_code == 0) {

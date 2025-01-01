@@ -7,7 +7,7 @@
 #include "CANopen.h"
 #include "system.h"
 #include "file_transfer_ext.h"
-#include "basic_node.h"
+#include "sdo_client_node.h"
 #include "parse_int.h"
 #include "sdo_client.h"
 
@@ -31,7 +31,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    r = basic_node_start(argv[1]);
+    r = sdo_client_node_start(argv[1]);
     if (r < 0) {
         printf("node start failure: %d\n", -r);
         return EXIT_FAILURE;
@@ -47,11 +47,11 @@ int main(int argc, char* argv[]) {
         goto abort;
     }
 
-    basic_node_stop();
+    sdo_client_node_stop();
     return EXIT_SUCCESS;
 
 abort:
-    basic_node_stop();
+    sdo_client_node_stop();
     printf("SDO Abort: 0x%x - %s\n", abort_code, get_sdo_abort_string(abort_code));
     return EXIT_FAILURE;
 }

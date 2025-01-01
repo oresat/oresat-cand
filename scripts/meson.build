@@ -1,1 +1,1 @@
-subdir('sdo_client')
+subdir('sdo_client_node')

@@ -21,7 +21,7 @@
 #include "CO_epoll_interface.h"
 
 #include "log_prinf.h"
-#include "basic_node.h"
+#include "sdo_client_node.h"
 
 #define CO_GET_CO(obj)       ((uint16_t)(CO_##obj))
 #define CO_GET_CNT(obj)      (uint8_t)(OD_CNT_##obj)
@@ -48,14 +48,14 @@ static CO_CANptrSocketCan_t CANptr = {0};
 static pthread_t thread_id;
 static bool running = true;
 
-static void* basic_node_thread(void *arg);
+static void* sdo_client_node_thread(void *arg);
 
 static void sigHandler(int sig) {
     (void)sig;
     running = false;
 }
 
-int basic_node_start(const char *CANdevice) {
+int sdo_client_node_start(const char *CANdevice) {
     CO_ReturnError_t err;
     uint32_t errInfo = 0;
 
@@ -114,7 +114,7 @@ int basic_node_start(const char *CANdevice) {
 
     log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, node_id, "running ...");
 
-    if (pthread_create(&thread_id, NULL, basic_node_thread, NULL) != 0) {
+    if (pthread_create(&thread_id, NULL, sdo_client_node_thread, NULL) != 0) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_create(rt_thread)");
     }
     return 0;
@@ -126,7 +126,7 @@ error:
     return -1;
 }
 
-void basic_node_stop(void) {
+void sdo_client_node_stop(void) {
     running = false;
     if (pthread_join(thread_id, NULL) != 0) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
@@ -140,7 +140,7 @@ void basic_node_stop(void) {
     log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, node_id, "finished");
 }
 
-static void* basic_node_thread(void *arg) {
+static void* sdo_client_node_thread(void *arg) {
     (void)arg;
     CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
     running = true;
