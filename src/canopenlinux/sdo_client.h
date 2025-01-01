@@ -1,5 +1,5 @@
-#ifndef _clientLIENT_H_
-#define _clientLIENT_H_
+#ifndef _SDO_CLIENT_H_
+#define _SDO_CLIENT_H_
 
 #include <stdint.h>
 #include "301/CO_SDOclient.h"

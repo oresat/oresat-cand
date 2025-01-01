@@ -1,9 +1,9 @@
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-
 #ifndef _SYSTEM_H_
 #define _SYSTEM_H_
+
+#include <stdbool.h>
+#include <stdint.h>
+#include <sys/types.h>
 
 void sleep_ms(uint32_t ms);
 void sleep_us(uint64_t us); // usleep is obsolete and was removed in POSIX.1-2008

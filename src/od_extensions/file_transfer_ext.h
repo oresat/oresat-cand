@@ -1,8 +1,8 @@
-#include "301/CO_ODinterface.h"
-#include "fcache.h"
-
 #ifndef _FILE_TRANSFER_EXT_H_
 #define _FILE_TRANSFER_EXT_H_
+
+#include "301/CO_ODinterface.h"
+#include "fcache.h"
 
 #define FREAD_CACHE_INDEX 0x3004
 #define FWRITE_CACHE_INDEX 0x3005

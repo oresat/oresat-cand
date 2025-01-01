@@ -1,7 +1,7 @@
-#include "301/CO_ODinterface.h"
-
 #ifndef _OS_COMMAND_EXT_H_
 #define _OS_COMMAND_EXT_H_
+
+#include "301/CO_ODinterface.h"
 
 #define OS_CMD_INDEX 0x1023
 #define OS_CMD_SUBINDEX_COMMAND 0x1
