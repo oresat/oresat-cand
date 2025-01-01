@@ -87,7 +87,7 @@ bool is_file(char *path) {
 bool is_file_in_dir(char *dir_path, char *file_name) {
     bool found = false;
     DIR *d = opendir(dir_path);
-    if (d == NULL) { // add all existing file to list
+    if (d == NULL) {
         return found;
     }
 

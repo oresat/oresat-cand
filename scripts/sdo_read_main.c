@@ -106,6 +106,7 @@ int main(int argc, char* argv[]) {
             } else if (!strncmp(dtype, "f64", strlen(dtype))) {
                 printf("%f\n", *(double *)data);
             } else if (!strncmp(dtype, "str", strlen(dtype))) {
+                data[read_size] = '\0';
                 printf("%s\n", (char *)data);
             }
         }

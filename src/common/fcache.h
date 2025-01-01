@@ -24,4 +24,6 @@ uint32_t fcache_size(fcache_t *cache);
 
 bool fcache_file_exist(fcache_t *cache, char *file_name);
 
+char* fcache_list_files_as_json(fcache_t *cache); // non-NULL results must be freed
+
 #endif

@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <errno.h>
 #include <linux/limits.h>
 #include <libgen.h>
@@ -152,4 +153,77 @@ bool fcache_file_exist(fcache_t *cache, char *file_name)
     found = is_file_in_dir(cache->dir_path, file_name);
     pthread_mutex_unlock(&cache->mutex);
     return found;
+}
+
+// this could be done with cJSON, but it is a one-off
+char* fcache_list_files_as_json(fcache_t *cache)
+{
+    if (!cache) {
+        return NULL;
+    }
+
+    unsigned int size = 256;
+    unsigned int offset = 0;
+    char *buf = (char *)malloc(size);
+    if (!buf) {
+        return NULL;
+    }
+    buf[0] = '[';
+    buf[1] = '\0';
+    offset = 1;
+
+    pthread_mutex_lock(&cache->mutex);
+    DIR *d = opendir(cache->dir_path);
+    if (d == NULL) {
+        return NULL;
+    }
+
+    struct dirent *dir;
+    while ((dir = readdir(d)) != NULL) { // directory found
+        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0
+            || strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
+            continue; // skip . and ..
+        }
+
+        while ((offset + strlen(dir->d_name) + 5) > size) {
+            void *tmp = realloc(buf, size * 2);
+            if (tmp == NULL) {
+                free(buf);
+                buf = NULL;
+                break;
+            }
+            buf = tmp;
+            size *= 2;
+
+            if (size > 10024) { // hard limit
+                free(buf);
+                buf = NULL;
+                break;
+            }
+        }
+
+        if (offset == 1) { // first file name
+            buf[1] = '"';
+            offset++;
+            buf[offset] = '\0';
+        } else {
+            strncat(buf, ", \"", strlen(", \"") + 1);
+            offset += 3;
+        }
+        strncat(buf, dir->d_name, strlen(dir->d_name));
+        offset += strlen(dir->d_name);
+        buf[offset] = '"';
+        offset++;
+        buf[offset] = '\0';
+    }
+    closedir(d);
+    pthread_mutex_unlock(&cache->mutex);
+
+    if (buf != NULL) {
+        buf[offset] = ']';
+        offset++;
+        buf[offset] = '\0';
+        offset++;
+    }
+    return buf;
 }

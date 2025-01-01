@@ -21,6 +21,7 @@ typedef struct {
     FILE *fp;
     fcache_t *cache;                // file cache to use if no path is given
     bool file_cached;               // convience flag for if file src/dest is the cache
+    char *files;
 } file_transfer_data_t;
 
 static ODR_t file_transfer_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead);
@@ -51,6 +52,7 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
             fread_data->file_path[0] = '\0';
             fread_data->tmp_file_path[0] = '\0';
             fread_data->cache = fread_cache;
+            fread_data->files = NULL;
         }
         fread_ext.object = fread_data;
         OD_extension_init(entry, &fread_ext);
@@ -66,6 +68,7 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
             fwrite_data->file_path[0] = '\0';
             fwrite_data->tmp_file_path[0] = '\0';
             fwrite_data->cache = fwrite_cache;
+            fwrite_data->files = NULL;
         }
         fwrite_ext.object = fwrite_data;
         OD_extension_init(entry, &fwrite_ext);
@@ -80,6 +83,9 @@ void file_transfer_extension_free(void) {
         if (fdata->fp) {
             fclose(fdata->fp);
         }
+        if (fdata->files) {
+            free(fdata->files);
+        }
         free(fread_ext.object);
         fread_ext.object = NULL;
     }
@@ -88,6 +94,9 @@ void file_transfer_extension_free(void) {
         fdata = (file_transfer_data_t *)fwrite_ext.object;
         if (fdata->fp) {
             fclose(fdata->fp);
+        }
+        if (fdata->files) {
+            free(fdata->files);
         }
         free(fwrite_ext.object);
         fwrite_ext.object = NULL;
@@ -114,9 +123,13 @@ static ODR_t file_transfer_read(OD_stream_t* stream, void* buf, OD_size_t count,
         }
         case FILE_TRANSFER_SUBINDEX_FILES:
         {
-            char data[] = "[]"; // TODO
-            *countRead = strlen(data) + 1;
-            strncpy(buf, data, *countRead);
+            if ((stream->dataOffset == 0) && (fdata->files != NULL)) {
+                free(fdata->files);
+            }
+            fdata->files = fcache_list_files_as_json(fdata->cache);
+            if (fdata->files != NULL) {
+                r = od_ext_read_data(stream, buf, count, countRead, fdata->files, strlen(fdata->files) + 1);
+            }
             break;
         }
         case FILE_TRANSFER_SUBINDEX_NAME:
