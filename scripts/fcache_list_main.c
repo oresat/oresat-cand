@@ -9,27 +9,10 @@
 #include "system.h"
 #include "file_transfer_ext.h"
 #include "basic_node.h"
+#include "parse_int.h"
 #include "sdo_client.h"
 
 extern CO_t *CO;
-
-int parse_int_arg(char *arg, int *value) {
-    char *endptr;
-    int tmp;
-
-    if ((arg[0] == '0') && (arg[1] == 'x')) { // hex
-        tmp = strtoul(arg, &endptr, 16);
-    } else {
-        tmp = strtoul(arg, &endptr, 10);
-    }
-
-    if (endptr == arg) {
-        return -1;
-    }
-
-    *value = tmp;
-    return 0;
-}
 
 static void usage(char *name) {
     printf("%s <interface> <node-id> <cache>\n", name);
@@ -56,10 +39,6 @@ int main(int argc, char* argv[]) {
     }
 
     int index;
-    size_t buf_size = 1024;
-    char buf[buf_size];
-    size_t read_size = 0;
-
     if (!strncmp(argv[3], "fread", strlen(argv[3])+1)) {
         index = FREAD_CACHE_INDEX;
     } else if (!strncmp(argv[3], "fwrite", strlen(argv[3])+1)) {
@@ -69,37 +48,34 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    CO_SDO_abortCode_t abort_code = read_SDO(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, (void *)buf, buf_size, &read_size);
-    if (abort_code != 0) {
+    char *buf = NULL;
+    CO_SDO_abortCode_t abort_code = sdo_read_str(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, &buf);
+    if (abort_code != 0 || !buf) {
         goto abort;
     }
 
-    buf[read_size] = '\0';
-
-    // could be done with cJSON
-    if (strncmp(buf, "[]", 3)) {
+    if (strncmp(buf, "[]", strlen(buf))) {
+        // could be done with cJSON
         char *token = strtok(buf, ",");
         while (token != NULL) {
             int len = strlen(token);
-            if (token[0] == '[') { // first file
-                token[len-1] = '\0';
-                printf("%s\n", &token[2]);
-            } else if (token[strlen(token)-1] == ']') { // last file
+            if (token[len - 1] == ']') { // last file
                 token[len-2] = '\0';
-                printf("%s\n", &token[2]);
             } else {
                 token[len-1] = '\0';
-                printf("%s\n", &token[2]);
             }
+            printf("%s\n", &token[2]);
             token = strtok(NULL, ",");
         }
     }
+
+    free(buf);
 
     basic_node_stop();
     return EXIT_SUCCESS;
 
 abort:
     basic_node_stop();
-    printf("SDO Abort: 0x%x - %s\n", abort_code, get_abort_string(abort_code));
+    printf("SDO Abort: 0x%x - %s\n", abort_code, get_sdo_abort_string(abort_code));
     return EXIT_FAILURE;
 }

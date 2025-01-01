@@ -7,27 +7,10 @@
 #include "CANopen.h"
 #include "os_command_ext.h"
 #include "basic_node.h"
+#include "parse_int.h"
 #include "sdo_client.h"
 
 extern CO_t *CO;
-
-int parse_int_arg(char *arg, int *value) {
-    char *endptr;
-    int tmp;
-
-    if ((arg[0] == '0') && (arg[1] == 'x')) { // hex
-        tmp = strtoul(arg, &endptr, 16);
-    } else {
-        tmp = strtoul(arg, &endptr, 10);
-    }
-
-    if (endptr == arg) {
-        return -1;
-    }
-
-    *value = tmp;
-    return 0;
-}
 
 static void usage(char *name) {
     printf("%s <interface> <node-id> <command>\n", name);
@@ -47,17 +30,13 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t data_size = 1024;
-    uint8_t data[data_size];
-    size_t read_size;
-
     r = basic_node_start(argv[1]);
     if (r < 0) {
         printf("node start failure: %d\n", -r);
         return EXIT_FAILURE;
     }
 
-    CO_SDO_abortCode_t abort_code = write_SDO(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_COMMAND, (void *)argv[3], strlen(argv[3]) + 1);
+    CO_SDO_abortCode_t abort_code = sdo_write_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_COMMAND, argv[3]);
     if (abort_code != 0) {
         goto abort;
     }
@@ -65,19 +44,20 @@ int main(int argc, char* argv[]) {
     uint8_t status = OS_CMD_EXECUTING;
     while (status == OS_CMD_EXECUTING) {
         usleep(250000);
-        abort_code = read_SDO(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_STATUS, &status, 1, &read_size);
+        abort_code = sdo_read_uint8(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_STATUS, &status);
         if (abort_code != 0) {
             goto abort;
         }
     }
 
-
     if ((status == OS_CMD_NO_ERROR_REPLY) || (status == OS_CMD_ERROR_REPLY)) {
-        abort_code = read_SDO(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_REPLY, data, data_size, &read_size);
+        char *reply = NULL;
+        abort_code = sdo_read_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_REPLY, &reply);
         if (abort_code != 0) {
             goto abort;
         }
-        printf("%s", (char *)data);
+        printf("%s", reply);
+        free(reply);
     } else {
         printf("no reply\n");
     }
@@ -87,6 +67,6 @@ int main(int argc, char* argv[]) {
 
 abort:
     basic_node_stop();
-    printf("SDO Abort: 0x%x - %s\n", abort_code, get_abort_string(abort_code));
+    printf("SDO Abort: 0x%x - %s\n", abort_code, get_sdo_abort_string(abort_code));
     return EXIT_FAILURE;
 }

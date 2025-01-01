@@ -7,27 +7,10 @@
 #include "CANopen.h"
 #include "basic_node.h"
 #include "str2buf.h"
+#include "parse_int.h"
 #include "sdo_client.h"
 
 extern CO_t *CO;
-
-int parse_int_arg(char *arg, int *value) {
-    char *endptr;
-    int tmp;
-
-    if ((arg[0] == '0') && (arg[1] == 'x')) { // hex
-        tmp = strtoul(arg, &endptr, 16);
-    } else {
-        tmp = strtoul(arg, &endptr, 10);
-    }
-
-    if (endptr == arg) {
-        return -1;
-    }
-
-    *value = tmp;
-    return 0;
-}
 
 static void usage(char *name) {
     printf("%s <interface> <node-id> <index> <subindex> <dtype> <write-arg>\n", name);
@@ -73,9 +56,9 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    CO_SDO_abortCode_t abort_code = write_SDO(CO->SDOclient, node_id, index, subindex, data, data_size);
+    CO_SDO_abortCode_t abort_code = sdo_write(CO->SDOclient, node_id, index, subindex, data, data_size);
     if (abort_code != 0) {
-        printf("SDO Abort: 0x%x - %s\n", abort_code, get_abort_string(abort_code));
+        printf("SDO Abort: 0x%x - %s\n", abort_code, get_sdo_abort_string(abort_code));
     }
 
     basic_node_stop();

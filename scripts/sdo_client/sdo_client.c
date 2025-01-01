@@ -1,12 +1,9 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <unistd.h>
-#include "CANopen.h"
 #include "CO_SDOserver.h"
 #include "sdo_client.h"
-
-extern CO_t* CO;
-extern CO_SDOclient_t* SDO_C;
 
 uint32_t ABORT_CODES[] = {
     0x00000000UL,
@@ -76,10 +73,10 @@ char *ABORT_CODES_STR[] = {
     "Data cannot be transferred or stored to application because of local control",
     "Data cannot be transferred or stored to application because of present device state",
     "Object dictionary not present or dynamic generation fails",
-    "No data available",
+    "No buf available",
 };
 
-char* get_abort_string(uint32_t code) {
+char* get_sdo_abort_string(uint32_t code) {
     char *r = NULL;
     for (int i=0; i<(int)ABORT_CODES_LEN; i++) {
         if (code == ABORT_CODES[i]) {
@@ -90,36 +87,89 @@ char* get_abort_string(uint32_t code) {
 }
 
 CO_SDO_abortCode_t
-read_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex, uint8_t* buf, size_t bufSize,
-         size_t* readSize) {
-    CO_SDO_return_t SDO_ret;
+sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void **buf, size_t *buf_size) {
+    CO_SDO_return_t ret;
 
-    SDO_ret = CO_SDOclient_setup(SDO_C, CO_CAN_ID_SDO_CLI + nodeId, CO_CAN_ID_SDO_SRV + nodeId, nodeId);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
+    ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
 
-    SDO_ret = CO_SDOclientUploadInitiate(SDO_C, index, subIndex, 1000, true);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
+    ret = CO_SDOclientUploadInitiate(client, index, subindex, 1000, true);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
+        return CO_SDO_AB_GENERAL;
+    }
+
+    size_t size = 0;
+    uint8_t *tmp = NULL;
+    size_t offset = 0;
+    size_t size_indicated = 0;
+    uint32_t time_diff_us = 10000;
+    CO_SDO_abortCode_t abort_code = CO_SDO_AB_NONE;
+    do {
+
+        ret = CO_SDOclientUpload(client, time_diff_us, false, &abort_code, &size_indicated, NULL, NULL);
+        if (ret < 0) {
+            return abort_code;
+        }
+
+        if (size_indicated != 0) {
+            if (size == 0) {
+                tmp = malloc(size_indicated + 1); // +1 for strings with missing '\0'
+                tmp[size_indicated - 1] = '\0';
+                if (!tmp) {
+                    return CO_SDO_AB_GENERAL;
+                }
+                size = size_indicated;
+            }
+            offset += CO_SDOclientUploadBufRead(client, &tmp[offset], size);
+        }
+
+        usleep(time_diff_us);
+    } while (ret > 0);
+
+    if (abort_code == CO_SDO_AB_NONE) {
+        *buf = tmp;
+        if (buf_size != NULL) {
+            *buf_size = size;
+        }
+    } else if (tmp) {
+        free(tmp);
+    }
+    return CO_SDO_AB_NONE;
+}
+
+CO_SDO_abortCode_t
+sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void* buf, size_t buf_size, size_t* readSize) {
+    CO_SDO_return_t ret;
+    uint8_t *data = (uint8_t *)buf;
+
+    ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
+        return CO_SDO_AB_GENERAL;
+    }
+
+    ret = CO_SDOclientUploadInitiate(client, index, subindex, 1000, true);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
 
     size_t offset = 0;
     do {
-        uint32_t timeDifference_us = 10000;
-        CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
+        uint32_t time_diff_us = 10000;
+        CO_SDO_abortCode_t abort_code = CO_SDO_AB_NONE;
 
-        SDO_ret = CO_SDOclientUpload(SDO_C, timeDifference_us, false, &abortCode, NULL, NULL, NULL);
-        if (SDO_ret < 0) {
-            return abortCode;
+        ret = CO_SDOclientUpload(client, time_diff_us, false, &abort_code, NULL, NULL, NULL);
+        if (ret < 0) {
+            return abort_code;
         }
 
-        if (SDO_ret >= 0) {
-            offset += CO_SDOclientUploadBufRead(SDO_C, &buf[offset], bufSize);
+        if (ret >= 0) {
+            offset += CO_SDOclientUploadBufRead(client, &data[offset], buf_size);
         }
 
-        usleep(timeDifference_us);
-    } while (SDO_ret > 0);
+        usleep(time_diff_us);
+    } while (ret > 0);
 
     *readSize = offset;
 
@@ -127,57 +177,58 @@ read_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex
 }
 
 CO_SDO_abortCode_t
-write_SDO(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex, uint8_t* data, size_t dataSize) {
-    CO_SDO_return_t SDO_ret;
+sdo_write(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void* buf, size_t buf_size) {
+    CO_SDO_return_t ret;
+    uint8_t *data = (uint8_t *)buf;
 
-    SDO_ret = CO_SDOclient_setup(SDO_C, CO_CAN_ID_SDO_CLI + nodeId, CO_CAN_ID_SDO_SRV + nodeId, nodeId);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
-        return -1;
+    ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
+        return CO_SDO_AB_GENERAL;
     }
 
-    SDO_ret = CO_SDOclientDownloadInitiate(SDO_C, index, subIndex, dataSize, 1000, true);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
+    ret = CO_SDOclientDownloadInitiate(client, index, subindex, buf_size, 1000, true);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_DATA_LOC_CTRL;
     }
 
-    bool bufferPartial = true;
-    uint32_t timeDifference_us = 10000;
-    CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
+    bool buffer_partial = true;
+    uint32_t time_diff_us = 10000;
+    CO_SDO_abortCode_t abort_code = CO_SDO_AB_NONE;
     size_t offset = 0;
 
     do {
-        if (offset < dataSize) {
-            offset += CO_SDOclientDownloadBufWrite(SDO_C, &data[offset], dataSize);
-            bufferPartial = offset < dataSize;
+        if (offset < buf_size) {
+            offset += CO_SDOclientDownloadBufWrite(client, &data[offset], buf_size);
+            buffer_partial = offset < buf_size;
         }
 
-        SDO_ret = CO_SDOclientDownload(SDO_C, timeDifference_us, false, bufferPartial, &abortCode, NULL, NULL);
-        if (SDO_ret < 0) {
-            return abortCode;
+        ret = CO_SDOclientDownload(client, time_diff_us, false, buffer_partial, &abort_code, NULL, NULL);
+        if (ret < 0) {
+            return abort_code;
         }
 
-        usleep(timeDifference_us);
-    } while (SDO_ret > 0);
+        usleep(time_diff_us);
+    } while (ret > 0);
 
     return CO_SDO_AB_NONE;
 }
 
 CO_SDO_abortCode_t
-read_SDO_to_file(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex, char *file_path) {
-    CO_SDO_return_t SDO_ret;
+sdo_read_to_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, char *file_path) {
+    CO_SDO_return_t ret;
 
-    SDO_ret = CO_SDOclient_setup(SDO_C, CO_CAN_ID_SDO_CLI + nodeId, CO_CAN_ID_SDO_SRV + nodeId, nodeId);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
+    ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
 
-    SDO_ret = CO_SDOclientUploadInitiate(SDO_C, index, subIndex, 1000, true);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
+    ret = CO_SDOclientUploadInitiate(client, index, subindex, 1000, true);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
 
     size_t nbytes;
-    uint8_t buf[SDO_C->bufFifo.bufSize];
+    uint8_t buf[client->bufFifo.bufSize];
 
     FILE *fp = fopen(file_path, "wb");
     if (fp == NULL) {
@@ -185,74 +236,74 @@ read_SDO_to_file(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t 
     }
 
     do {
-        uint32_t timeDifference_us = 10000;
-        CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
+        uint32_t time_diff_us = 10000;
+        CO_SDO_abortCode_t abort_code = CO_SDO_AB_NONE;
 
-        SDO_ret = CO_SDOclientUpload(SDO_C, timeDifference_us, false, &abortCode, NULL, NULL, NULL);
-        if (SDO_ret < 0) {
+        ret = CO_SDOclientUpload(client, time_diff_us, false, &abort_code, NULL, NULL, NULL);
+        if (ret < 0) {
             fclose(fp);
-            return abortCode;
+            return abort_code;
         }
 
-        if (SDO_ret >= 0) {
-            nbytes = CO_SDOclientUploadBufRead(SDO_C, buf, SDO_C->bufFifo.bufSize);
+        if (ret >= 0) {
+            nbytes = CO_SDOclientUploadBufRead(client, buf, client->bufFifo.bufSize);
             fwrite(buf, nbytes, 1, fp);
         }
 
-        usleep(timeDifference_us);
-    } while (SDO_ret > 0);
+        usleep(time_diff_us);
+    } while (ret > 0);
 
     fclose(fp);
     return CO_SDO_AB_NONE;
 }
 
 CO_SDO_abortCode_t
-write_SDO_from_file(CO_SDOclient_t* SDO_C, uint8_t nodeId, uint16_t index, uint8_t subIndex, char *file_path) {
-    CO_SDO_return_t SDO_ret;
+sdo_write_from_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, char *file_path) {
+    CO_SDO_return_t ret;
 
-    SDO_ret = CO_SDOclient_setup(SDO_C, CO_CAN_ID_SDO_CLI + nodeId, CO_CAN_ID_SDO_SRV + nodeId, nodeId);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
-        return -1;
+    ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
+        return CO_SDO_AB_GENERAL;
     }
 
     FILE *fp = fopen(file_path, "rb");
     if (fp == NULL) {
-        return -1;
+        return CO_SDO_AB_GENERAL;
     }
 
     fseek(fp, 0L, SEEK_END);
-    size_t dataSize = ftell(fp);
+    size_t buf_size = ftell(fp);
     rewind(fp);
 
-    SDO_ret = CO_SDOclientDownloadInitiate(SDO_C, index, subIndex, dataSize, 1000, true);
-    if (SDO_ret != CO_SDO_RT_ok_communicationEnd) {
+    ret = CO_SDOclientDownloadInitiate(client, index, subindex, buf_size, 1000, true);
+    if (ret != CO_SDO_RT_ok_communicationEnd) {
         fclose(fp);
         return CO_SDO_AB_DATA_LOC_CTRL;
     }
 
-    bool bufferPartial = true;
-    uint32_t timeDifference_us = 10000;
-    CO_SDO_abortCode_t abortCode = CO_SDO_AB_NONE;
+    bool buffer_partial = true;
+    uint32_t time_diff_us = 10000;
+    CO_SDO_abortCode_t abort_code = CO_SDO_AB_NONE;
     size_t offset = 0;
     size_t space = 0;
-    uint8_t buf[SDO_C->bufFifo.bufSize];
+    uint8_t buf[client->bufFifo.bufSize];
 
     do {
-        space = CO_fifo_getSpace(&SDO_C->bufFifo);
-        if ((offset < dataSize) && (space > 0)) {
+        space = CO_fifo_getSpace(&client->bufFifo);
+        if ((offset < buf_size) && (space > 0)) {
             fread(buf, space, 1, fp);
-            offset += CO_SDOclientDownloadBufWrite(SDO_C, buf, dataSize);
-            bufferPartial = offset < dataSize;
+            offset += CO_SDOclientDownloadBufWrite(client, buf, buf_size);
+            buffer_partial = offset < buf_size;
         }
 
-        SDO_ret = CO_SDOclientDownload(SDO_C, timeDifference_us, false, bufferPartial, &abortCode, NULL, NULL);
-        if (SDO_ret < 0) {
+        ret = CO_SDOclientDownload(client, time_diff_us, false, buffer_partial, &abort_code, NULL, NULL);
+        if (ret < 0) {
             fclose(fp);
-            return abortCode;
+            return abort_code;
         }
 
-        usleep(timeDifference_us);
-    } while (SDO_ret > 0);
+        usleep(time_diff_us);
+    } while (ret > 0);
 
     fclose(fp);
     return CO_SDO_AB_NONE;
