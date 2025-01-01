@@ -12,12 +12,11 @@
 #include <linux/reboot.h>
 #include <sys/reboot.h>
 #include <wordexp.h>
+#include "logger.h"
 #include "CANopen.h"
 #include "OD.h"
-#include "CO_error.h"
 #include "CO_epoll_interface.h"
 #include "fcache.h"
-#include "log_prinf.h"
 #include "ecss_time_ext.h"
 #include "os_command_ext.h"
 #include "file_transfer_ext.h"
@@ -127,7 +126,7 @@ main(int argc, char* argv[]) {
                 rtPriority = strtol(optarg, NULL, 0);
                 break;
             case 'v':
-                log_printf_set_level(LOG_DEBUG);
+                log_level_set(LOG_DEBUG);
                 break;
             default:
                 printUsage(argv[0]); exit(EXIT_FAILURE);

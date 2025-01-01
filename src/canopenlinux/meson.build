@@ -31,7 +31,10 @@ libcanopenlinux = shared_library(
   'CANopenLinux',
   libcanopenlinux_files,
   include_directories: libcanopenlinux_includes,
-  dependencies: dependency('threads'),
+  dependencies: [
+    dependency('threads'),
+    libcommon_dep,
+  ],
   install: false,
   c_args: '-DCO_DRIVER_CUSTOM',
 )

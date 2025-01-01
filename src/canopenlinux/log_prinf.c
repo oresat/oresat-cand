@@ -1,57 +1,18 @@
-#include <libgen.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/syslog.h>
-#include <sys/time.h>
-#include <libgen.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdarg.h>
+#include "CO_error.h"
+#include "logger.h"
 
-char *LOG_LEVEL_STR[] = {
-    "EMERGENCY",
-    "ALERT",
-    "CRITIAL",
-    "ERROR",
-    "WARNINNG",
-    "NOTICE",
-    "INFO",
-    "DEBUG",
-};
-
-static int log_level = LOG_INFO;
-
+/*
+ * This function is defined in CANopenLinux/CO_error.h,
+ * so it can't be a #define macro
+ *
+ * This will format the message close to the style defined in logger.c
+ */
 void log_printf(int priority, const char* format, ...) {
-    char *level = NULL;
-    switch (priority) {
-        case LOG_EMERG:
-            level = LOG_LEVEL_STR[0];
-            break;
-        case LOG_ALERT:
-            level = LOG_LEVEL_STR[1];
-            break;
-        case LOG_CRIT:
-            level = LOG_LEVEL_STR[2];
-            break;
-        case LOG_ERR:
-            level = LOG_LEVEL_STR[3];
-            break;
-        case LOG_WARNING:
-            level = LOG_LEVEL_STR[4];
-            break;
-        case LOG_NOTICE:
-            level = LOG_LEVEL_STR[5];
-            break;
-        case LOG_INFO:
-            level = LOG_LEVEL_STR[6];
-            break;
-        case LOG_DEBUG:
-            level = LOG_LEVEL_STR[7];
-            break;
-    }
-
-    if (priority > log_level) {
+    if (priority > log_level_get()) {
         return;
     }
 
@@ -64,9 +25,5 @@ void log_printf(int priority, const char* format, ...) {
     vsnprintf(buf, sizeof(buf), format, args2);
     va_end(args2);
 
-    printf("%s: %s\n", level, buf);
-}
-
-void log_printf_set_level(int level) {
-    log_level = level;
+    printf("%s: %s\n", log_level_get_str(priority), buf);
 }

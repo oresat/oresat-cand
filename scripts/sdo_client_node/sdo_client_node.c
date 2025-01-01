@@ -16,11 +16,10 @@
 #include <sys/reboot.h>
 #include <sys/syslog.h>
 
+#include "logger.h"
 #include "CANopen.h"
 #include "OD.h"
 #include "CO_epoll_interface.h"
-
-#include "log_prinf.h"
 #include "sdo_client_node.h"
 
 #define CO_GET_CO(obj)       ((uint16_t)(CO_##obj))
@@ -59,7 +58,7 @@ int sdo_client_node_start(const char *CANdevice) {
     CO_ReturnError_t err;
     uint32_t errInfo = 0;
 
-    log_printf_set_level(LOG_CRIT);
+    log_level_set(LOG_CRIT);
 
     CANptr.can_ifindex = if_nametoindex(CANdevice);
     if (CANptr.can_ifindex == 0) {
