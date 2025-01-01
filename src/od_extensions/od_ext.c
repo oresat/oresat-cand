@@ -20,6 +20,11 @@ ODR_t od_ext_read_data(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_
 
     ODR_t returnCode = ODR_OK;
 
+    // set the size
+    if (stream->dataOffset == 0U) {
+        stream->dataLength = dataLen;
+    }
+
     /* If previous read was partial or OD variable length is larger than
      * current buffer size, then data was (will be) read in several segments */
     if ((stream->dataOffset > 0U) || (dataLenToCopy > count)) {

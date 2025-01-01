@@ -116,7 +116,7 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
         if (size_indicated != 0) {
             if (size == 0) {
                 tmp = malloc(size_indicated + 1); // +1 for strings with missing '\0'
-                tmp[size_indicated - 1] = '\0';
+                tmp[size_indicated] = '\0';
                 if (!tmp) {
                     return CO_SDO_AB_GENERAL;
                 }

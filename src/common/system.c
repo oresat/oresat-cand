@@ -65,12 +65,13 @@ int run_bash_command(char *in, char *out, int out_max_len) {
     int c;
     for (out_len = 0; (c = fgetc(pipe)) != EOF; out_len++) {
         if (out_len > (out_max_len - 1)) {
-            out[out_len] = '\0';
             break; // max len reached
         }
         out[out_len] = (char)c;
     }
     pclose(pipe);
+    out_len++;
+    out[out_len - 1] = '\0';
     return out_len;
 }
 

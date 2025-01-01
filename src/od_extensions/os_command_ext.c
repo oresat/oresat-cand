@@ -11,8 +11,8 @@
 #include "od_ext.h"
 #include "os_command_ext.h"
 
-#define COMMAND_BUFFER_LEN 2048
-#define REPLY_BUFFER_LEN 4096
+#define COMMAND_BUFFER_LEN 4096
+#define REPLY_BUFFER_LEN 10024
 
 static bool running;
 static pthread_t thread_id;
@@ -68,13 +68,14 @@ static void* os_command_thread(void* arg) {
             log_info("running os command: %s", message);
             int reply_len = run_bash_command(command, reply, REPLY_BUFFER_LEN);
             if (reply_len < 0) {
+                reply[0] = '\0';
                 status = OS_CMD_ERROR_NO_REPLY;
-                reply[0] = '\0';
             } else if (reply_len == 0) {
-                status = OS_CMD_NO_ERROR_NO_REPLY;
                 reply[0] = '\0';
+                status = OS_CMD_NO_ERROR_NO_REPLY;
             } else {
                 status = OS_CMD_NO_ERROR_REPLY;
+                reply[reply_len - 1] = '\0';
             }
         }
     }
@@ -91,7 +92,11 @@ static ODR_t os_command_read(OD_stream_t* stream, void* buf, OD_size_t count, OD
         memcpy(buf, &status, 1);
         *countRead = 1;
     } else if (stream->subIndex == OS_CMD_SUBINDEX_REPLY) {
-        r = od_ext_read_data(stream, buf, count, countRead, reply, strlen(reply) + 1);
+        if (reply[0] == '\0') {
+            r = ODR_NO_DATA;
+        } else {
+            r = od_ext_read_data(stream, buf, count, countRead, reply, strlen(reply) + 1);
+        }
     }
     return r;
 }

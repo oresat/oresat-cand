@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
         if (abort_code != 0) {
             goto abort;
         }
-        printf("%s", reply);
+        printf("%s\n", reply);
         free(reply);
     } else {
         printf("no reply\n");
