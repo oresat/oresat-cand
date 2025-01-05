@@ -58,10 +58,8 @@ int main(int argc, char* argv[]) {
 
 
     if (abort_code == 0) {
-        if ((argc == 5) || ((argc == 6) && !strncmp(argv[5], "bytes", strlen(argv[5])))) {
-            if (strncmp(argv[5], "bytes", strlen(argv[5]))) {
-                printf("0x");
-            }
+        if (argc == 5) {
+            printf("0x");
             for (size_t i=0; i<read_size; i++) {
                 printf("%02X", data[i]);
             }
@@ -93,6 +91,11 @@ int main(int argc, char* argv[]) {
             } else if (!strncmp(dtype, "str", strlen(dtype))) {
                 data[read_size] = '\0';
                 printf("%s\n", (char *)data);
+            } else if (!strncmp(argv[5], "bytes", strlen(argv[5]))) {
+                for (size_t i=0; i<read_size; i++) {
+                    printf("%02X", data[i]);
+                }
+                printf("\n");
             }
         }
     } else {
