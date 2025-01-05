@@ -49,6 +49,7 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
         file_transfer_data_t *fread_data = malloc(sizeof(file_transfer_data_t));
         if (fread_data != NULL) {
             strcpy(fread_data->name, "fread");
+            fread_data->fp = NULL;
             fread_data->file_cached = false;
             fread_data->raw[0] = '\0';
             fread_data->file_name[0] = '\0';
@@ -68,6 +69,7 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
         file_transfer_data_t *fwrite_data = malloc(sizeof(file_transfer_data_t));
         if (fwrite_data != NULL) {
             strcpy(fwrite_data->name, "fwrite");
+            fwrite_data->fp = NULL;
             fwrite_data->file_cached = false;
             fwrite_data->raw[0] = '\0';
             fwrite_data->file_name[0] = '\0';

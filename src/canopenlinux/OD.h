@@ -54,12 +54,14 @@ typedef struct {
         uint8_t highest_index_supported;
         uint8_t length;
         char files_json[3];
+        char file_name[1];
         bool_t remove;
     } x3004_fread_cache;
     struct {
         uint8_t highest_index_supported;
         uint8_t length;
         char files_json[3];
+        char file_name[1];
         bool_t remove;
     } x3005_fwrite_cache;
 } OD_RAM_t;
@@ -87,19 +89,5 @@ extern OD_ATTR_OD OD_t *OD;
 #define OD_ENTRY_H2011 &OD->list[10]
 #define OD_ENTRY_H3004 &OD->list[11]
 #define OD_ENTRY_H3005 &OD->list[12]
-
-#define OD_ENTRY_H1000_DEVICE_TYPE &OD->list[0]
-#define OD_ENTRY_H1001_ERROR_REGISTER &OD->list[1]
-#define OD_ENTRY_H1003_PREDEFINED_ERROR_FIELD &OD->list[2]
-#define OD_ENTRY_H1014_COB_ID_EMERGENCY_MESSAGE &OD->list[3]
-#define OD_ENTRY_H1017_PRODUCER_HEARTBEAT_TIME &OD->list[4]
-#define OD_ENTRY_H1018_IDENTITY &OD->list[5]
-#define OD_ENTRY_H1023_OS_COMMAND &OD->list[6]
-#define OD_ENTRY_H1200_SDO_SERVER_PARAMETER &OD->list[7]
-#define OD_ENTRY_H1280_SDO_CLIENT_PARAMETER &OD->list[8]
-#define OD_ENTRY_H2010_SCET &OD->list[9]
-#define OD_ENTRY_H2011_UTC &OD->list[10]
-#define OD_ENTRY_H3004_FREAD_CACHE &OD->list[11]
-#define OD_ENTRY_H3005_FWRITE_CACHE &OD->list[12]
 
 #endif

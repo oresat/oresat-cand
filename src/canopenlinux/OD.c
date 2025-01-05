@@ -237,9 +237,9 @@ static CO_PROGMEM ODObjs_t ODObjs = {
             .dataLength = 2
         },
         {
-            .dataOrig = NULL,
+            .dataOrig = &OD_RAM.x3004_fread_cache.file_name[0],
             .subIndex = 3,
-            .attribute = ODA_SDO_RW | ODA_MB,
+            .attribute = ODA_SDO_RW | ODA_STR,
             .dataLength = 0
         },
         {
@@ -275,9 +275,9 @@ static CO_PROGMEM ODObjs_t ODObjs = {
             .dataLength = 2
         },
         {
-            .dataOrig = NULL,
+            .dataOrig = &OD_RAM.x3005_fwrite_cache.file_name[0],
             .subIndex = 3,
-            .attribute = ODA_SDO_RW | ODA_MB,
+            .attribute = ODA_SDO_RW | ODA_STR,
             .dataLength = 0
         },
         {

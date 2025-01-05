@@ -16,6 +16,7 @@ libsdoclientnode = shared_library(
   c_args: [
   '-DCO_DRIVER_CUSTOM',
   '-DCO_SINGLE_THREAD',
+  '-DCO_MULTIPLE_OD',
   ],
 )
 

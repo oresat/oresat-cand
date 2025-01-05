@@ -20,6 +20,7 @@
 #include "CANopen.h"
 #include "OD.h"
 #include "CO_epoll_interface.h"
+#include "config.h"
 #include "sdo_client_node.h"
 
 #define CO_GET_CO(obj)       ((uint16_t)(CO_##obj))
@@ -57,6 +58,8 @@ static void sigHandler(int sig) {
 int sdo_client_node_start(const char *CANdevice) {
     CO_ReturnError_t err;
     uint32_t errInfo = 0;
+    CO_config_t config;
+    fill_config(OD, &config);
 
     log_level_set(LOG_CRIT);
 
@@ -67,7 +70,7 @@ int sdo_client_node_start(const char *CANdevice) {
     }
 
     uint32_t heapMemoryUsed = 0;
-    CO = CO_new(NULL, &heapMemoryUsed);
+    CO = CO_new(&config, &heapMemoryUsed);
     if (CO == NULL) {
         log_printf(LOG_CRIT, DBG_GENERAL, "CO_new(), heapMemoryUsed=", heapMemoryUsed);
         goto error;

@@ -16,6 +16,8 @@ libcanopenlinux_files = [
   'CANopenLinux/CO_epoll_interface.c',
   'CANopenLinux/CO_error.c',
   'OD.c',
+  'config.c',
+  'dcf_od.c',
   'log_prinf.c',
   'sdo_client.c',
 ]
@@ -36,7 +38,10 @@ libcanopenlinux = shared_library(
     libcommon_dep,
   ],
   install: false,
-  c_args: '-DCO_DRIVER_CUSTOM',
+  c_args: [
+    '-DCO_MULTIPLE_OD',
+    '-DCO_DRIVER_CUSTOM',
+  ]
 )
 
 libcanopenlinux_dep = declare_dependency(

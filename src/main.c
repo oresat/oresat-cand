@@ -15,11 +15,13 @@
 #include "logger.h"
 #include "CANopen.h"
 #include "OD.h"
+#include "config.h"
 #include "CO_epoll_interface.h"
 #include "fcache.h"
 #include "ecss_time_ext.h"
 #include "os_command_ext.h"
 #include "file_transfer_ext.h"
+#include "dcf_od.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US 1000
@@ -90,6 +92,7 @@ printUsage(char* progName) {
     printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n");
     printf("                      set to -1, then normal scheduler is used for RT thread.\n");
     printf("  -v                  Verbose logging\n");
+    printf("  -d                  Load dcf\n");
 }
 
 int
@@ -103,15 +106,18 @@ main(int argc, char* argv[]) {
     CO_CANptrSocketCan_t CANptr = {0};
     int opt;
     bool_t firstRun = true;
-
     char* CANdevice = NULL;
     int16_t nodeIdFromArgs = -1;
+    char dcf_path[PATH_MAX] = {0};
+    OD_t *od = NULL;
+    CO_config_t config;
+    bool used_extenal_od = false;
 
     if (argc < 2 || strcmp(argv[1], "--help") == 0) {
         printUsage(argv[0]);
         exit(EXIT_SUCCESS);
     }
-    while ((opt = getopt(argc, argv, "hi:p:v")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:p:vd:")) != -1) {
         switch (opt) {
             case 'h': {
                 printUsage(argv[0]);
@@ -127,6 +133,9 @@ main(int argc, char* argv[]) {
                 break;
             case 'v':
                 log_level_set(LOG_DEBUG);
+                break;
+            case 'd':
+                strncpy(dcf_path, optarg, strlen(optarg));
                 break;
             default:
                 printUsage(argv[0]); exit(EXIT_FAILURE);
@@ -157,9 +166,25 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
+
+    if (dcf_path[0] != '\0') {
+        if (dcf_od_load(dcf_path, &od) < 0) {
+            log_critical("failed to load in external od from %s", dcf_path);
+        } else {
+            log_info("using external od from %s", dcf_path);
+            used_extenal_od = true;
+        }
+    }
+    if (od == NULL) {
+        log_info("using internal od", dcf_path);
+        od = OD;
+        used_extenal_od = false;
+    }
+    fill_config(od, &config);
+
     uint32_t heapMemoryUsed = 0;
-    CO_config_t* config_ptr = NULL;
-    CO = CO_new(config_ptr, &heapMemoryUsed);
+    CO = CO_new(&config, &heapMemoryUsed);
     if (CO == NULL) {
         log_printf(LOG_CRIT, DBG_GENERAL, "CO_new(), heapMemoryUsed=", heapMemoryUsed);
         exit(EXIT_FAILURE);
@@ -186,8 +211,6 @@ main(int argc, char* argv[]) {
     }
     CANptr.epoll_fd = epRT.epoll_fd;
 
-    log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
-
     fcache_t* fread_cache = NULL;
     fcache_t* fwrite_cache = NULL;
     if (getuid() == 0)  {
@@ -207,9 +230,9 @@ main(int argc, char* argv[]) {
     log_info("fread cache path: %s", fread_cache->dir_path);
     log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
-    os_command_extension_init(OD);
-    ecss_time_extension_init(OD);
-    file_transfer_extension_init(OD, fread_cache, fwrite_cache);
+    os_command_extension_init(od);
+    ecss_time_extension_init(od);
+    file_transfer_extension_init(od, fread_cache, fwrite_cache);
 
     while (reset != CO_RESET_APP && reset != CO_RESET_QUIT && CO_endProgram == 0) {
         uint32_t errInfo;
@@ -232,7 +255,7 @@ main(int argc, char* argv[]) {
         }
 
         errInfo = 0;
-        err = CO_CANopenInit(CO, NULL, NULL, OD, NULL, NMT_CONTROL, FIRST_HB_TIME,
+        err = CO_CANopenInit(CO, NULL, NULL, od, NULL, NMT_CONTROL, FIRST_HB_TIME,
                              SDO_SRV_TIMEOUT_TIME, SDO_CLI_TIMEOUT_TIME,
                              SDO_CLI_BLOCK, CO_activeNodeId, &errInfo);
         if (err != CO_ERROR_NO) {
@@ -289,7 +312,7 @@ main(int argc, char* argv[]) {
         }
 
         errInfo = 0;
-        err = CO_CANopenInitPDO(CO, CO->em, OD, CO_activeNodeId, &errInfo);
+        err = CO_CANopenInitPDO(CO, CO->em, od, CO_activeNodeId, &errInfo);
         if (err != CO_ERROR_NO) {
             if (err == CO_ERROR_OD_PARAMETERS) {
                 log_printf(LOG_CRIT, DBG_OD_ENTRY, errInfo);
@@ -329,6 +352,10 @@ main(int argc, char* argv[]) {
     CO_epoll_close(&epMain);
     CO_CANsetConfigurationMode((void*)&CANptr);
     CO_delete(CO);
+
+    if (used_extenal_od && (od != NULL)) {
+        dcf_od_free(od);
+    }
 
     log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "finished");
     exit(programExit);
