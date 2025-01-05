@@ -8,7 +8,7 @@ static int get_str_base(const char *str) {
 }
 
 bool* str2buf_bool(const char *str) {
-    if (str == NULL) return NULL;
+    if (str == NULL || !strlen(str)) return NULL;
     bool *value = (bool *)malloc(sizeof(bool));
     if (value) {
         if (!strncmp(str, "true", strlen(str))
@@ -26,119 +26,111 @@ bool* str2buf_bool(const char *str) {
 }
 
 uint8_t* str2buf_uint8(const char *str) {
-    if (str == NULL) return NULL;
-    uint8_t *value = (uint8_t *)malloc(sizeof(uint8_t));
-    if (value) {
-        char *endptr;
-        *value = (uint8_t)strtoul(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str) || str[0] == '-') return NULL;
+    char *endptr;
+    unsigned long tmp = strtoul(str, &endptr, get_str_base(str));
+    if (tmp > 0xFF || endptr == str) {
+        return NULL;
     }
+    uint8_t *value = (uint8_t *)malloc(sizeof(uint8_t));
+    if (value)
+        *value = (uint8_t)tmp;
     return value;
 }
 
 uint16_t* str2buf_uint16(const char *str) {
-    if (str == NULL) return NULL;
-    uint16_t *value = (uint16_t *)malloc(sizeof(uint16_t));
-    if (value) {
-        char *endptr;
-        *value = (uint16_t)strtoul(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str) || str[0] == '-') return NULL;
+    char *endptr;
+    unsigned long tmp = strtoul(str, &endptr, get_str_base(str));
+    if (tmp > 0xFFFF || endptr == str) {
+        return NULL;
     }
+    uint16_t *value = (uint16_t *)malloc(sizeof(uint16_t));
+    if (value)
+        *value = (uint16_t)tmp;
     return value;
 }
 
 uint32_t* str2buf_uint32(const char *str) {
-    if (str == NULL) return NULL;
-    uint32_t *value = (uint32_t *)malloc(sizeof(uint32_t));
-    if (value) {
-        char *endptr;
-        *value = strtoul(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str) || str[0] == '-') return NULL;
+    char *endptr;
+    unsigned long tmp = strtoul(str, &endptr, get_str_base(str));
+    if (endptr == str) {
+        return NULL;
     }
+    uint32_t *value = (uint32_t *)malloc(sizeof(uint32_t));
+    if (value)
+        *value = tmp;
     return value;
 }
 
 uint64_t* str2buf_uint64(const char *str) {
-    if (str == NULL) return NULL;
-    uint64_t *value = (uint64_t *)malloc(sizeof(uint64_t));
-    if (value) {
-        char *endptr;
-        *value = strtoull(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str) || str[0] == '-') return NULL;
+    char *endptr;
+    unsigned long long tmp = strtoull(str, &endptr, get_str_base(str));
+    if (endptr == str) {
+        return NULL;
     }
+    uint64_t *value = (uint64_t *)malloc(sizeof(uint64_t));
+    if (value)
+        *value = tmp;
     return value;
 }
 
 int8_t* str2buf_int8(const char *str) {
-    if (str == NULL) return NULL;
-    int8_t *value = (int8_t *)malloc(sizeof(int8_t));
-    if (value) {
-        char *endptr;
-        *value = (int8_t)strtol(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str)) return NULL;
+    char *endptr;
+    long tmp = strtol(str, &endptr, get_str_base(str));
+    if (tmp < -0x80 || tmp > 0x7F || endptr == str) {
+        return NULL;
     }
+    int8_t *value = (int8_t *)malloc(sizeof(int8_t));
+    if (value)
+        *value = (int8_t)tmp;
     return value;
 }
 
 int16_t* str2buf_int16(const char *str) {
-    if (str == NULL) return NULL;
-    int16_t *value = (int16_t *)malloc(sizeof(int16_t));
-    if (value) {
-        char *endptr;
-        *value = (int16_t)strtol(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str)) return NULL;
+    char *endptr;
+    long tmp = strtol(str, &endptr, get_str_base(str));
+    if (tmp < -0x8000 || tmp > 0x7FFF || endptr == str) {
+        return NULL;
     }
+    int16_t *value = (int16_t *)malloc(sizeof(int16_t));
+    if (value)
+        *value = (int16_t)tmp;
     return value;
 }
 
 int32_t* str2buf_int32(const char *str) {
-    if (str == NULL) return NULL;
-    int32_t *value = (int32_t *)malloc(sizeof(int32_t));
-    if (value) {
-        char *endptr;
-        *value = strtol(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str)) return NULL;
+    char *endptr;
+    long tmp = strtol(str, &endptr, get_str_base(str));
+    if (endptr == str) {
+        return NULL;
     }
+    int32_t *value = (int32_t *)malloc(sizeof(int32_t));
+    if (value)
+        *value = (int32_t)tmp;
     return value;
 }
 
 int64_t* str2buf_int64(const char *str) {
-    if (str == NULL) return NULL;
-    int64_t *value = (int64_t *)malloc(sizeof(int64_t));
-    if (value) {
-        char *endptr;
-        *value = strtoll(str, &endptr, get_str_base(str));
-        if (endptr == str) {
-            free(value);
-            value = NULL;
-        }
+    if (str == NULL || !strlen(str)) return NULL;
+    char *endptr;
+    long long tmp = strtoll(str, &endptr, get_str_base(str));
+    if (endptr == str) {
+        return NULL;
     }
+    int64_t *value = (int64_t *)malloc(sizeof(int64_t));
+    if (value)
+        *value = (int64_t)tmp;
     return value;
 }
 
 float* str2buf_float32(const char *str) {
-    if (str == NULL) return NULL;
+    if (str == NULL || !strlen(str)) return NULL;
     float *value = (float *)malloc(sizeof(float));
     if (value) {
         char *endptr;
@@ -152,7 +144,7 @@ float* str2buf_float32(const char *str) {
 }
 
 double* str2buf_float64(const char *str) {
-    if (str == NULL) return NULL;
+    if (str == NULL || !strlen(str)) return NULL;
     double *value = (double *)malloc(sizeof(double));
     if (value) {
         char *endptr;
@@ -166,16 +158,18 @@ double* str2buf_float64(const char *str) {
 }
 
 uint8_t* str2buf_bytes(const char *str, size_t *out_len) {
-    if ((str == NULL) || (out_len == NULL) || (strlen(str) % 2)) return NULL;
+    if (!str || !out_len || !strlen(str) || (strlen(str) % 2)) return NULL;
     size_t len = strlen(str) / 2;
     uint8_t *value = (uint8_t *)malloc(len);
     if (value) {
         char *endptr;
         char tmp[] = "00";
         bool valid = true;
+        size_t offset = 0;
         for (size_t i=0; i < len; i++) {
-            tmp[0] = str[i];
-            tmp[1] = str[i + 1];
+            offset = 2*i;
+            tmp[0] = str[offset];
+            tmp[1] = str[offset + 1];
             value[i] = (uint8_t)strtoul(tmp, &endptr, 16);
             if (endptr == str) {
                 valid = false;
