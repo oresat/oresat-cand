@@ -451,8 +451,7 @@ static void reset_tmp_data(struct tmp_data_t *data) {
     data->index = 0;
     data->subindex = 0;
     data->total_subindexes = 0;
-    data->default_value[0] = '0';
-    data->default_value[1] = '\0';
+    data->default_value[0] = 0;
 }
 
 static int parse_index_header(const char *line, uint16_t *index) {
