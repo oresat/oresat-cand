@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "system.h"
 #include "CO_SDOserver.h"
 #include "sdo_client.h"
 
@@ -125,7 +126,7 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
             offset += CO_SDOclientUploadBufRead(client, &tmp[offset], size);
         }
 
-        usleep(time_diff_us);
+        sleep_us(time_diff_us);
     } while (ret > 0);
 
     if (abort_code == CO_SDO_AB_NONE) {
@@ -168,7 +169,7 @@ sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subind
             offset += CO_SDOclientUploadBufRead(client, &data[offset], buf_size);
         }
 
-        usleep(time_diff_us);
+        sleep_us(time_diff_us);
     } while (ret > 0);
 
     if (read_size != NULL) {
@@ -209,7 +210,7 @@ sdo_write(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subin
             return abort_code;
         }
 
-        usleep(time_diff_us);
+        sleep_us(time_diff_us);
     } while (ret > 0);
 
     return CO_SDO_AB_NONE;
@@ -252,7 +253,7 @@ sdo_read_to_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
             fwrite(buf, nbytes, 1, fp);
         }
 
-        usleep(time_diff_us);
+        sleep_us(time_diff_us);
     } while (ret > 0);
 
     fclose(fp);
@@ -304,7 +305,7 @@ sdo_write_from_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uin
             return abort_code;
         }
 
-        usleep(time_diff_us);
+        sleep_us(time_diff_us);
     } while (ret > 0);
 
     fclose(fp);

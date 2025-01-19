@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "CANopen.h"
-#include "system.h"
 #include "file_transfer_ext.h"
 #include "sdo_client_node.h"
 #include "parse_int.h"
@@ -19,7 +18,7 @@ static void usage(char *name) {
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        printf("invalid number of args\n");
+        printf("invalid number of args\n\n");
         usage(argv[0]);
         return EXIT_FAILURE;
     }

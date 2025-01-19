@@ -276,55 +276,48 @@ void* str2buf_dtype_str(const char *dtype, const char *str, size_t *out_len) {
     void *buf = NULL;
     size_t buf_len = 0;
 
-#define STRNCMP3(str1, str2, str3) \
-        (!strncmp(dtype, str1, strlen(dtype)) || \
-         !strncmp(dtype, str2, strlen(dtype)) || \
-         !strncmp(dtype, str3, strlen(dtype)))
-
-    if (STRNCMP3("b", "bool", "boolean")) {
+    if (!strncmp(dtype, "bool", strlen(dtype))) {
         buf = (void *)str2buf_bool(str);
         buf_len = 1;
-    } else if (STRNCMP3("i8", "int8", "interger8")) {
+    } else if (!strncmp(dtype, "int8", strlen(dtype))) {
         buf = (void *)str2buf_int8(str);
         buf_len = 1;
-    } else if (STRNCMP3("i16", "int16", "interger16")) {
+    } else if (!strncmp(dtype, "int16", strlen(dtype))) {
         buf = (void *)str2buf_int16(str);
         buf_len = 2;
-    } else if (STRNCMP3("i32", "int32", "interger32")) {
+    } else if (!strncmp(dtype, "int32", strlen(dtype))) {
         buf = (void *)str2buf_int32(str);
         buf_len = 4;
-    } else if (STRNCMP3("i64", "int64", "interger64")) {
+    } else if (!strncmp(dtype, "int64", strlen(dtype))) {
         buf = (void *)str2buf_int64(str);
         buf_len = 8;
-    } else if (STRNCMP3("u8", "uint8", "unsigned8")) {
+    } else if (!strncmp(dtype, "uint8", strlen(dtype))) {
         buf = (void *)str2buf_uint8(str);
         buf_len = 1;
-    } else if (STRNCMP3("u16", "uint16", "unsigned16")) {
+    } else if (!strncmp(dtype, "uint16", strlen(dtype))) {
         buf = (void *)str2buf_uint16(str);
         buf_len = 2;
-    } else if (STRNCMP3("u32", "uint32", "unsigned32")) {
+    } else if (!strncmp(dtype, "uint32", strlen(dtype))) {
         buf = (void *)str2buf_uint32(str);
         buf_len = 4;
-    } else if (STRNCMP3("u64", "uint64", "unsigned64")) {
+    } else if (!strncmp(dtype, "uint64", strlen(dtype))) {
         buf = (void *)str2buf_uint64(str);
         buf_len = 8;
-    } else if (STRNCMP3("f32", "float", "real32")) {
+    } else if (!strncmp(dtype, "float32", strlen(dtype))) {
         buf = (void *)str2buf_float32(str);
         buf_len = 4;
-    } else if (STRNCMP3("f64", "float32", "real64")) {
-        buf = (void *)str2buf_float32(str);
-        buf_len = 4;
-    } else if (STRNCMP3("s", "str", "visible_string")) {
+    } else if (!strncmp(dtype, "float64", strlen(dtype))) {
+        buf = (void *)str2buf_float64(str);
+        buf_len = 8;
+    } else if (!strncmp(dtype, "string", strlen(dtype))) {
         buf_len = strlen(str);
         buf = (void *)malloc(buf_len + 1);
         memcpy(buf, str, buf_len);
         char *tmp = (char *)buf;
         tmp[buf_len] = '\0';
-    } else if (STRNCMP3("o", "bytes", "octet_string")) {
+    } else if (!strncmp(dtype, "bytes", strlen(dtype))) {
         buf = (void *)str2buf_bytes(str, &buf_len);
     }
-
-#undef STRNCMP3
 
     if (buf) {
         *out_len = buf_len;

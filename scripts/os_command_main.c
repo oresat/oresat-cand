@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "CANopen.h"
+#include "system.h"
 #include "os_command_ext.h"
 #include "sdo_client_node.h"
 #include "parse_int.h"
@@ -18,7 +19,7 @@ static void usage(char *name) {
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        printf("invalid number of args\n");
+        printf("invalid number of args\n\n");
         usage(argv[0]);
         return EXIT_FAILURE;
     }
@@ -43,7 +44,7 @@ int main(int argc, char* argv[]) {
 
     uint8_t status = OS_CMD_EXECUTING;
     while (status == OS_CMD_EXECUTING) {
-        usleep(250000);
+        sleep_ms(250);
         abort_code = sdo_read_uint8(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_STATUS, &status);
         if (abort_code != 0) {
             goto abort;

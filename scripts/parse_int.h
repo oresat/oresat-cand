@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 
-int parse_int_arg(char *arg, int *value) {
+static inline int parse_int_arg(char *arg, int *value) {
     char *endptr;
     int tmp;
 

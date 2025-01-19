@@ -6,7 +6,6 @@
 #include <string.h>
 #include <unistd.h>
 #include "CANopen.h"
-#include "system.h"
 #include "file_transfer_ext.h"
 #include "sdo_client_node.h"
 #include "parse_int.h"
@@ -16,11 +15,13 @@ extern CO_t *CO;
 
 static void usage(char *name) {
     printf("%s <interface> <node-id> <cache>\n", name);
+    printf("\n");
+    printf("caches: fread or fwrite\n");
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        printf("invalid number of args\n");
+        printf("invalid number of args\n\n");
         usage(argv[0]);
         return EXIT_FAILURE;
     }
@@ -34,7 +35,7 @@ int main(int argc, char* argv[]) {
 
     r = sdo_client_node_start(argv[1]);
     if (r < 0) {
-        printf("node start failure: %d\n", -r);
+        printf("node start failure: %d\n\n", -r);
         return EXIT_FAILURE;
     }
 
@@ -62,9 +63,9 @@ int main(int argc, char* argv[]) {
         while (token != NULL) {
             int len = strlen(token);
             if (token[len - 1] == ']') { // last file
-                token[len-2] = '\0';
+                token[len - 2] = '\0';
             } else {
-                token[len-1] = '\0';
+                token[len - 1] = '\0';
             }
             printf("%s\n", &token[2]);
             token = strtok(NULL, ",");

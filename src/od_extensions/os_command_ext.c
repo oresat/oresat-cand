@@ -56,7 +56,7 @@ static void* os_command_thread(void* arg) {
     message[log_size - 1] = '\0';
 
     while (running) {
-        usleep(250000);
+        sleep_ms(250);
         if (status != OS_CMD_EXECUTING) {
             continue; // nothing todo
         }
@@ -104,6 +104,9 @@ static ODR_t os_command_read(OD_stream_t* stream, void* buf, OD_size_t count, OD
 static ODR_t os_command_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
     ODR_t r = ODR_READONLY;
     if (stream->subIndex == OS_CMD_SUBINDEX_COMMAND) {
+        if (status == OS_CMD_EXECUTING) {
+            return ODR_DATA_LOC_CTRL;
+        }
         size_t command_len = 0;
         r = od_ext_write_data(stream, buf, count, countWritten, command, COMMAND_BUFFER_LEN - 1, &command_len);
         if (r == ODR_OK) {

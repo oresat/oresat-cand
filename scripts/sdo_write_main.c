@@ -13,12 +13,15 @@
 extern CO_t *CO;
 
 static void usage(char *name) {
-    printf("%s <interface> <node-id> <index> <subindex> <dtype> <write-arg>\n", name);
+    printf("%s <interface> <node-id> <index> <subindex> <dtype> <value>\n", name);
+    printf("\n");
+    printf("dtypes: bool, int8, int16, int32, int64, uint8, uint16, "
+           "uint32, uint64, float32, float64, string, bytes\n");
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 7) {
-        printf("invalid number of args\n");
+        printf("invalid number of args\n\n");
         usage(argv[0]);
         return EXIT_FAILURE;
     }

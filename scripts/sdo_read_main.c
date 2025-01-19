@@ -13,11 +13,14 @@ extern CO_t *CO;
 
 static void usage(char *name) {
     printf("%s <interface> <node-id> <index> <subindex> <dtype>\n", name);
+    printf("\n");
+    printf("dtypes: bool, int8, int16, int32, int64, uint8, uint16, "
+           "uint32, uint64, float32, float64, string, bytes\n");
 }
 
 int main(int argc, char* argv[]) {
     if ((argc != 5) && (argc != 6)) {
-        printf("invalid number of args\n");
+        printf("invalid number of args\n\n");
         usage(argv[0]);
         return EXIT_FAILURE;
     }
@@ -43,52 +46,50 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t data_size = 1024;
-    uint8_t data[data_size];
-    size_t read_size;
-
     r = sdo_client_node_start(argv[1]);
     if (r < 0) {
         printf("node start failure: %d\n", -r);
         return EXIT_FAILURE;
     }
 
-    CO_SDO_abortCode_t abort_code = sdo_read(CO->SDOclient, node_id, index, subindex, data, data_size, &read_size);
+    void *data = NULL;
+    size_t data_size = 0;
+    CO_SDO_abortCode_t abort_code = sdo_read_dynamic(CO->SDOclient, node_id, index, subindex, &data, &data_size);
     sdo_client_node_stop();
 
 
     if (abort_code == 0) {
         if ((argc == 5) || (!strncmp(argv[5], "bytes", strlen(argv[5])))) {
-            for (size_t i=0; i<read_size; i++) {
-                printf("%02X", data[i]);
+            uint8_t *tmp = (uint8_t *)data;
+            for (size_t i=0; i<data_size; i++) {
+                printf("%02X", tmp[i]);
             }
             printf("\n");
         } else {
             char *dtype = argv[5];
-            if (!strncmp(dtype, "b", strlen(dtype))) {
+            if (!strncmp(dtype, "bool", strlen(dtype))) {
                 printf("%d\n", *(bool *)data);
-            } else if (!strncmp(dtype, "i8", strlen(dtype))) {
-                printf("%d\n", *(int8_t *)data);
-            } else if (!strncmp(dtype, "i16", strlen(dtype))) {
-                printf("%d\n", *(int16_t *)data);
-            } else if (!strncmp(dtype, "i32", strlen(dtype))) {
-                printf("%d\n", *(int32_t *)data);
-            } else if (!strncmp(dtype, "i64", strlen(dtype))) {
-                printf("%ld\n", *(int64_t *)data);
-            } else if (!strncmp(dtype, "u8", strlen(dtype))) {
-                printf("%d\n", *(uint8_t *)data);
-            } else if (!strncmp(dtype, "u16", strlen(dtype))) {
-                printf("%d\n", *(uint16_t *)data);
-            } else if (!strncmp(dtype, "u32", strlen(dtype))) {
-                printf("%d\n", *(uint32_t *)data);
-            } else if (!strncmp(dtype, "u64", strlen(dtype))) {
-                printf("%ld\n", *(uint64_t *)data);
-            } else if (!strncmp(dtype, "f32", strlen(dtype))) {
+            } else if (!strncmp(dtype, "int8", strlen(dtype))) {
+                printf("%d (0x%X)\n", *(int8_t *)data, *(int8_t *)data);
+            } else if (!strncmp(dtype, "int16", strlen(dtype))) {
+                printf("%d (0x%X)\n", *(int16_t *)data, *(int16_t *)data);
+            } else if (!strncmp(dtype, "int32", strlen(dtype))) {
+                printf("%d (0x%X)\n", *(int32_t *)data, *(int32_t *)data);
+            } else if (!strncmp(dtype, "int64", strlen(dtype))) {
+                printf("%ld (0x%lX)\n", *(int64_t *)data, *(int64_t *)data);
+            } else if (!strncmp(dtype, "uint8", strlen(dtype))) {
+                printf("%d (0x%X)\n", *(uint8_t *)data, *(uint8_t *)data);
+            } else if (!strncmp(dtype, "uint16", strlen(dtype))) {
+                printf("%d (0x%X)\n", *(uint16_t *)data, *(uint16_t *)data);
+            } else if (!strncmp(dtype, "uint32", strlen(dtype))) {
+                printf("%d (0x%X)\n", *(uint32_t *)data, *(uint32_t *)data);
+            } else if (!strncmp(dtype, "uint64", strlen(dtype))) {
+                printf("%ld (0x%lX)\n", *(uint64_t *)data, *(uint64_t *)data);
+            } else if (!strncmp(dtype, "float32", strlen(dtype))) {
                 printf("%f\n", *(float *)data);
-            } else if (!strncmp(dtype, "f64", strlen(dtype))) {
+            } else if (!strncmp(dtype, "float64", strlen(dtype))) {
                 printf("%f\n", *(double *)data);
-            } else if (!strncmp(dtype, "str", strlen(dtype))) {
-                data[read_size] = '\0';
+            } else if (!strncmp(dtype, "string", strlen(dtype))) {
                 printf("%s\n", (char *)data);
             }
         }
