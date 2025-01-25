@@ -354,7 +354,7 @@ static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data) {
         entry->subEntriesCount = data->total_subindexes;
         entry->odObject = rec;
     } else {
-            log_error("invalid object type for index 0x%X subindex 0x%X in dcf: %d", data->index, data->subindex, data->object_type);
+        log_error("invalid object type for index 0x%X subindex 0x%X in dcf: %d", data->index, data->subindex, data->object_type);
         return -1;
     }
 
@@ -572,8 +572,18 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
         return -1;
     }
 
-    if (!((data->data_type == DOMAIN) || (data->data_type == OCTET_STRING) || (data->data_type == VISIBLE_STRING )) && (*value == NULL)) {
-        return -1;
+    if (!((data->data_type == DOMAIN) || (data->data_type == OCTET_STRING) || (data->data_type == VISIBLE_STRING ))) {
+        // no default
+        if (strlen(data->default_value) == 0) {
+            *value = malloc(length);
+            if (*value) {
+                memset(*value, 0, length);
+            }
+        }
+
+        if (*value == NULL) {
+            return -1;
+        }
     }
 
     if (value_length != NULL ) {
