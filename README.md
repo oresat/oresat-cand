@@ -13,7 +13,7 @@ pip install meson ninja
 Initialize CANopenLinux submodule
 
 ```bash
-git submodule udpate --init --recursive
+git submodule update --init --recursive
 ```
 
 Build
