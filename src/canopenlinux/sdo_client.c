@@ -6,6 +6,8 @@
 #include "CO_SDOserver.h"
 #include "sdo_client.h"
 
+#define SDO_TIMEOUT_MS 1000
+
 uint32_t ABORT_CODES[] = {
     0x00000000UL,
     0x05030000UL,
@@ -96,7 +98,7 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
         return CO_SDO_AB_GENERAL;
     }
 
-    ret = CO_SDOclientUploadInitiate(client, index, subindex, 1000, true);
+    ret = CO_SDOclientUploadInitiate(client, index, subindex, SDO_TIMEOUT_MS, true);
     if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
@@ -150,7 +152,7 @@ sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subind
         return CO_SDO_AB_GENERAL;
     }
 
-    ret = CO_SDOclientUploadInitiate(client, index, subindex, 1000, true);
+    ret = CO_SDOclientUploadInitiate(client, index, subindex, SDO_TIMEOUT_MS, true);
     if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }

@@ -23,6 +23,7 @@
 #include "file_transfer_ext.h"
 #include "system_ext.h"
 #include "dcf_od.h"
+#include "ipc.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US 1000
@@ -231,6 +232,9 @@ main(int argc, char* argv[]) {
     log_info("fread cache path: %s", fread_cache->dir_path);
     log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
+    ipc_args_t ipc_args = { .od=od, .co=CO, .config=&config };
+    ipc_init(&ipc_args);
+
     os_command_extension_init(od);
     ecss_time_extension_init(od);
     file_transfer_extension_init(od, fread_cache, fwrite_cache);
@@ -343,6 +347,8 @@ main(int argc, char* argv[]) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
         exit(EXIT_FAILURE);
     }
+
+    ipc_free();
 
     os_command_extension_free();
     file_transfer_extension_free();
