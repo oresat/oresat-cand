@@ -8,7 +8,7 @@
 void sleep_ms(uint32_t ms);
 void sleep_us(uint64_t us); // usleep is obsolete and was removed in POSIX.1-2008
 
-uint32_t get_uptime(void);
+uint32_t get_uptime_s(void);
 uint32_t get_uptime_ms(void);
 uint64_t get_uptime_us(void);
 

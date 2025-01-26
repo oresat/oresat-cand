@@ -21,6 +21,7 @@
 #include "ecss_time_ext.h"
 #include "os_command_ext.h"
 #include "file_transfer_ext.h"
+#include "system_ext.h"
 #include "dcf_od.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
@@ -233,6 +234,7 @@ main(int argc, char* argv[]) {
     os_command_extension_init(od);
     ecss_time_extension_init(od);
     file_transfer_extension_init(od, fread_cache, fwrite_cache);
+    system_extension_init(od);
 
     while (reset != CO_RESET_APP && reset != CO_RESET_QUIT && CO_endProgram == 0) {
         uint32_t errInfo;

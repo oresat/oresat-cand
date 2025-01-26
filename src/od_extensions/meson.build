@@ -3,6 +3,7 @@ libodextensions_files = [
   'od_ext.c',
   'os_command_ext.c',
   'file_transfer_ext.c',
+  'system_ext.c',
 ]
 
 libodextensions_includes = include_directories('.')

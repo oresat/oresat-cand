@@ -32,7 +32,7 @@ void sleep_us(uint64_t us) {
     nanosleep(&ts, NULL);
 }
 
-uint32_t get_uptime(void) {
+uint32_t get_uptime_s(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts); // monotonic is uptime on linux
     return ts.tv_sec;
