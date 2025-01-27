@@ -7,13 +7,21 @@ Python library to interface with oresat-canopend.
 ```python
 from time import sleep
 
-from oresat_canopend import NodeClient
+from oresat_canopend import Entry, NodeClient
+
+INPUT_ENTRY_1 = Entry(0x4123, 0x2, Datatype.BOOLEAN)
+INPUT_ENTRY_2 = Entry(0x4123, 0x5, Datatype.UNSIGNED16)
+OUTPUT_ENTRY = Entry(0x4123, 0x7, Datatype.UNSIGNED32)
 
 client = NodeClient()
 
 while True:
-    value = client.od_read(0x4123, 0x5, Datatype.UNSIGNED16)
-    output = do_things(value)
-    client.od_write(0x4123, 0x7, Datatype.UNSIGNED32, output)
+    input_1 = client.od_read(INPUT_ENTRY_2)
+    input_2 = client.od_read(INPUT_ENTRY_2)
+
+    output = do_things(input_1, input_2))
+
+    client.od_write(OUTPUT_ENTRY, output)
+
     sleep(1)
 ```
