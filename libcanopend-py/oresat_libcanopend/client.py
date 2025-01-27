@@ -1,6 +1,7 @@
 import struct
 from enum import Enum
 from typing import Any
+from dataclasses import dataclass
 
 import zmq
 
@@ -88,6 +89,13 @@ ABORT_CODES = {
 }
 
 
+@dataclass
+class Entry:
+    index: int
+    subindex: int
+    data_type: Datatype
+
+
 class NodeClient:
     def __init__(self, addr: str = "localhost", port: int = 5555, debug: bool = False):
         self._context = zmq.Context()
@@ -129,24 +137,30 @@ class NodeClient:
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
-    def od_write(self, index: int, subindex: int, dtype: Datatype, value: Any):
-        msg = struct.pack("<BH2B", MsgId.OD_WRITE.value, index, subindex, dtype.value)
-        if dtype in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
-            msg += value
-        elif dtype == Datatype.VISIBLE_STRING:
-            msg += value.encode()
-        else:
-            msg += struct.pack("<" + DATATYPE_FMT_CHARS[dtype], value)
+    def _pack_rw(self, msg_id: MsgId, entry: Entry, value: Any = None) -> bytes:
+        msg = struct.pack("<BH2B", msg_id.value, entry.index, entry.subindex, entry.data_type.value)
+        if msg_id in (MsgId.OD_WRITE, MsgId.SDO_WRITE):
+            if entry.data_type in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
+                msg += value
+            elif entry.data_type == Datatype.VISIBLE_STRING:
+                msg += value.encode()
+            elif value is not None:
+                msg += struct.pack("<" + DATATYPE_FMT_CHARS[entry.data_type], value)
+        return msg
 
-        msg_recv = self._send_and_recv(msg + value)
+    def od_write(self, entry: Entry, value: Any):
+        msg = self._pack_rw(MsgId.OD_WRITE, entry, value)
+
+        msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_OD_ABORT.value:
             ac = int.from_bytes(msg_recv[-4:], "little")
             raise ValueError(f"od abort 0x{ac:X} - {ABORT_CODES[ac]}")
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
-    def od_read(self, index: int, subindex: int, dtype: Datatype) -> Any:
-        msg = struct.pack("<BH2B", MsgId.OD_READ.value, index, subindex, dtype.value)
+    def od_read(self, entry: Entry) -> Any:
+        msg = self._pack_rw(MsgId.OD_READ, entry)
+
         msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_OD_ABORT.value:
             ac = int.from_bytes(msg_recv[-4:], "little")
@@ -155,20 +169,14 @@ class NodeClient:
             raise ValueError("recv message did start with sent message")
 
         value: Any = msg_recv[len(msg) :]
-        if dtype == Datatype.VISIBLE_STRING:
+        if entry.data_type == Datatype.VISIBLE_STRING:
             value = value.decode()
-        elif dtype not in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
-            value = struct.unpack("<" + DATATYPE_FMT_CHARS[dtype], value)[0]
+        elif entry.data_type not in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
+            value = struct.unpack("<" + DATATYPE_FMT_CHARS[entry.data_type], value)[0]
         return value
 
-    def sdo_write(self, index: int, subindex: int, dtype: Datatype, value: Any):
-        msg = struct.pack("<BH2B", MsgId.SDO_READ.value, index, subindex, dtype.value)
-        if dtype in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
-            msg += value
-        elif dtype == Datatype.VISIBLE_STRING:
-            msg += value.encode()
-        else:
-            msg += struct.pack("<" + DATATYPE_FMT_CHARS[dtype], value)
+    def sdo_write(self, entry: Entry, value: Any):
+        msg = self._pack_rw(MsgId.SDO_WRITE, entry, value)
 
         msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_SDO_ABORT.value:
@@ -177,8 +185,9 @@ class NodeClient:
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
-    def sdo_read(self, index: int, subindex: int, dtype: Datatype) -> Any:
-        msg = struct.pack("<BH2B", MsgId.SDO_READ.value, index, subindex, dtype.value)
+    def sdo_read(self, entry: Entry) -> Any:
+        msg = self._pack_rw(MsgId.SDO_READ, entry)
+
         msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_SDO_ABORT.value:
             ac = int.from_bytes(msg_recv[-4:], "little")
@@ -187,8 +196,8 @@ class NodeClient:
             raise ValueError("recv message did start with sent message")
 
         value: Any = msg_recv[len(msg) :]
-        if dtype == Datatype.VISIBLE_STRING:
+        if entry.data_type == Datatype.VISIBLE_STRING:
             value = value.decode()
-        elif dtype not in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
-            value = struct.unpack("<" + DATATYPE_FMT_CHARS[dtype], value)[0]
+        elif entry.data_type not in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
+            value = struct.unpack("<" + DATATYPE_FMT_CHARS[entry.data_type], value)[0]
         return value
