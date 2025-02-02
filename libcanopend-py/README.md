@@ -2,6 +2,12 @@
 
 Python library to interface with oresat-canopend.
 
+## Install
+
+```bash
+pip install .
+```
+
 ## Example
 
 ```python
@@ -16,7 +22,7 @@ OUTPUT_ENTRY = Entry(0x4123, 0x7, Datatype.UNSIGNED32)
 client = NodeClient()
 
 while True:
-    input_1 = client.od_read(INPUT_ENTRY_2)
+    input_1 = client.od_read(INPUT_ENTRY_1)
     input_2 = client.od_read(INPUT_ENTRY_2)
 
     output = do_things(input_1, input_2))
