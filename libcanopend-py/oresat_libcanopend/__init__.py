@@ -7,8 +7,8 @@ import zmq
 
 
 class MsgId(Enum):
-    EMCY_SEND = 0x00
-    TPDO_SEND = 0x01
+    SEND_EMCY = 0x00
+    SEND_TPDO = 0x01
     OD_READ = 0x02
     OD_WRITE = 0x03
     SDO_READ = 0x04
@@ -125,13 +125,13 @@ class NodeClient:
             raise ValueError(f"unknown id 0x{msg_recv[0]:X}")
         return msg_recv
 
-    def emcy_send(self, code: int):
+    def send_emcy(self, code: int):
         msg = struct.pack("<BI", MsgId.EMCY_SEND.value, code)
         msg_recv = self._send_and_recv(msg)
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
-    def tpdo_send(self, num: int):
+    def send_tpdo(self, num: int):
         msg = struct.pack("<2B", MsgId.TPDO_SEND.value, num)
         msg_recv = self._send_and_recv(msg)
         if msg_recv != msg:
