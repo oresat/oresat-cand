@@ -1,5 +1,6 @@
 libipc_files = [
   'ipc.c',
+  'ipc_can_event.c',
 ]
 
 libipc_includes = include_directories('.')

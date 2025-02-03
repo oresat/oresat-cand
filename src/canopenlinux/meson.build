@@ -17,7 +17,6 @@ libcanopenlinux_files = [
   'CANopenLinux/CO_error.c',
   'OD.c',
   'config.c',
-  'dcf_od.c',
   'log_prinf.c',
   'sdo_client.c',
 ]

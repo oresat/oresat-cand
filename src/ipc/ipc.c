@@ -7,21 +7,22 @@
 #include <unistd.h>
 #include <zmq.h>
 #include "CANopen.h"
-#include "CO_ODinterface.h"
-#include "CO_SDOserver.h"
 #include "sdo_client.h"
 #include "logger.h"
 #include "ipc.h"
+#include "ipc_can_event.h"
 
 #define BUFFER_SIZE 10240
 
 static void *context = NULL;
 static void *responder = NULL;
 
-void ipc_init(void) {
+void ipc_init(CO_t *co) {
     context = zmq_ctx_new();
     responder = zmq_socket(context, ZMQ_REP);
     zmq_bind(responder, "tcp://*:"IPC_PORT);
+
+    ipc_can_event_init(context, co);
 }
 
 void ipc_process(CO_t* co, OD_t* od, CO_config_t *config) {
@@ -44,7 +45,7 @@ void ipc_process(CO_t* co, OD_t* od, CO_config_t *config) {
     buffer_out_send = 1;
 
     switch (buffer_in[0]) {
-        case IPC_MSG_ID_SEND_EMCY:
+        case IPC_MSG_ID_EMCY_SEND:
         {
             if (buffer_in_recv == sizeof(ipc_msg_emcy_t)) {
                 ipc_msg_emcy_t msg_emcy;
@@ -56,7 +57,7 @@ void ipc_process(CO_t* co, OD_t* od, CO_config_t *config) {
             }
             break;
         }
-        case IPC_MSG_ID_SEND_TPDO:
+        case IPC_MSG_ID_TPDO_SEND:
         {
             if (buffer_in_recv == 2) {
                 uint8_t num = buffer_in[1];
@@ -103,7 +104,7 @@ void ipc_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 memcpy(&msg_od, buffer_in, sizeof(ipc_msg_od_t));
                 log_debug("od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
                 OD_entry_t *entry = OD_find(od, msg_od.index);
-                ODR_t r = OD_set_value(entry, msg_od.subindex, &buffer_in[sizeof(ipc_msg_od_t)], buffer_in_recv - sizeof(ipc_msg_od_t), false);
+                ODR_t r = OD_set_value(entry, msg_od.subindex, &buffer_in[sizeof(ipc_msg_od_t)], buffer_in_recv - sizeof(ipc_msg_od_t), true);
                 if (r == ODR_OK) {
                     memcpy(buffer_out, buffer_in, buffer_in_recv);
                     buffer_out_send = buffer_in_recv;
@@ -184,6 +185,7 @@ void ipc_process(CO_t* co, OD_t* od, CO_config_t *config) {
 }
 
 void ipc_free(void) {
+    ipc_can_event_free();
     zmq_close(responder);
     zmq_ctx_term(context);
 }

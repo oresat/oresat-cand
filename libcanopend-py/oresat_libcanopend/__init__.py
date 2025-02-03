@@ -1,7 +1,8 @@
 import struct
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 from dataclasses import dataclass
+from threading import Thread
 
 import zmq
 
@@ -12,12 +13,13 @@ except ImportError:
 
 
 class MsgId(Enum):
-    SEND_EMCY = 0x00
-    SEND_TPDO = 0x01
+    EMCY_SEND = 0x00
+    TPDO_SEND = 0x01
     OD_READ = 0x02
     OD_WRITE = 0x03
     SDO_READ = 0x04
     SDO_WRITE = 0x05
+    EMCY_RECV = 0x06
     ERROR_UNKNOWN_ID = 0x80
     ERROR_LENGTH = 0x81
     ERROR_TPDO_NUM = 0x82
@@ -102,13 +104,48 @@ class Entry:
 
 
 class NodeClient:
-    def __init__(self, addr: str = "localhost", port: int = 5555, debug: bool = False):
+    def __init__(self, addr: str = "localhost", debug: bool = False):
         self._context = zmq.Context()
         self._socket = self._context.socket(zmq.REQ)
-        self._socket.connect(f"tcp://{addr}:{port}")
+        self._socket.connect(f"tcp://{addr}:5555")
         self._socket.setsockopt(zmq.RCVTIMEO, 1500)
         self._socket.setsockopt(zmq.LINGER, 0)
+        self._sub_socket = self._context.socket(zmq.SUB)
+        self._sub_socket.connect(f"tcp://{addr}:5556")
+        self._sub_socket.setsockopt(zmq.SUBSCRIBE, b"")
         self._debug = debug
+        self._od_cbs: dict[list[int], Callable[[Any], None]] = {}
+        self._emcy_cb = None
+        self._thread = Thread(target=self._sub_thread, daemon=True)
+        self._thread.start()
+
+    def _sub_thread(self):
+        while True:
+            msg = self._sub_socket.recv()
+            try:
+                if msg[0] == MsgId.EMCY_RECV:
+                    _, node_id, code, reg, bit, info = struct.unpack("<2BH2BI", msg)
+                    self._emcy_cb(node_id, code, reg, bit, info)
+                elif msg[0] == MsgId.OD_WRITE:
+                    index, subindex, dtype = struct.unpack("<H2B", msg[1:5])
+                    if (index, subindex) not in self._od_cbs:
+                        continue
+                    raw = msg[5:]
+                    if dtype in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
+                        value = raw
+                    elif dtype == Datatype.VISIBLE_STRING:
+                        value = raw.encode()
+                    else:
+                        value = struct.unpack("<" + DATA_TYPE_FMT_CHARS[dtype], raw)
+                    self._od_cbs[index, subindex](value)
+            except Exception:
+                continue
+
+    def subscribe_od_change(self, entry: Entry, func: Callable[[Any], None]):
+        self._od_cbs[entry.index, entry.subindex] = func
+
+    def subscribe_emcy(self, entry: Entry, func: Callable[[int, int, int, int, int], None]):
+        self._emcy_cb = func
 
     def _send_and_recv(self, msg: bytes) -> bytes:
         if self._debug:
@@ -131,13 +168,13 @@ class NodeClient:
         return msg_recv
 
     def send_emcy(self, code: int, info: int = 0):
-        msg = struct.pack("<BHI", MsgId.SEND_EMCY.value, code, info)
+        msg = struct.pack("<BHI", MsgId.EMCY_SEND.value, code, info)
         msg_recv = self._send_and_recv(msg)
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
     def send_tpdo(self, num: int):
-        msg = struct.pack("<2B", MsgId.SEND_TPDO.value, num)
+        msg = struct.pack("<2B", MsgId.TPDO_SEND.value, num)
         msg_recv = self._send_and_recv(msg)
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")

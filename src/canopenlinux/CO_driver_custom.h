@@ -17,7 +17,7 @@ extern "C" {
 
 /* EM configs */
 #undef CO_CONFIG_EM_CONSUMER
-#define CO_CONFIG_EM_CONSUMER 0
+#define CO_CONFIG_EM_CONSUMER 1
 
 /* TIME configs */
 #undef CO_CONFIG_TIME

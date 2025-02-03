@@ -236,7 +236,7 @@ main(int argc, char* argv[]) {
     log_info("fread cache path: %s", fread_cache->dir_path);
     log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
-    ipc_init();
+    ipc_init(CO);
 
     os_command_extension_init(od);
     ecss_time_extension_init(od);

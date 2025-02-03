@@ -27,17 +27,13 @@ if __name__ == "__main__":
     subparser.add_argument("value", help="value to write")
 
     subparser = subparsers.add_parser("sdo-read", help="read a value from another node")
-    subparser.add_argument(
-        "node_id", metavar="node-id", type=int_hex, help="id of the node to read from"
-    )
+    subparser.add_argument("node_id", metavar="node-id", type=int_hex, help="node to read from")
     subparser.add_argument("index", type=int_hex, help="od index to read from")
     subparser.add_argument("subindex", type=int_hex, help="od subindex to read from")
     subparser.add_argument("dtype", choices=dtypes, help="od datatype")
 
     subparser = subparsers.add_parser("sdo-write", help="write a value to another node")
-    subparser.add_argument(
-        "node_id", metavar="node-id", type=int_hex, help="id of the node to write to"
-    )
+    subparser.add_argument("node_id", metavar="node-id", type=int_hex, help="node to write to")
     subparser.add_argument("index", type=int_hex, help="od index to write to")
     subparser.add_argument("subindex", type=int_hex, help="od subindex to write to")
     subparser.add_argument("dtype", choices=dtypes, help="od datatype")
