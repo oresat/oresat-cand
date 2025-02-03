@@ -36,6 +36,9 @@ download = "https://github.com/oresat/oresat-canopend/releases"
 source = "https://github.com/oresat/oresat-canopend"
 tracker = "https://github.com/oresat/oresat-canopend/issues"
 
+#[tool.setuptools_scm]
+#write_to = "oresat_libcanopend/_version.py"
+
 [tool.ruff]
 line-length = 100
 indent-width = 4

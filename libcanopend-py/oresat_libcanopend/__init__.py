@@ -1,9 +1,14 @@
 import struct
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 from dataclasses import dataclass
 
 import zmq
+
+try:
+    from ._version import version as __version__
+except ImportError:
+    __version__ = "0"
 
 
 class MsgId(Enum):
@@ -125,20 +130,24 @@ class NodeClient:
             raise ValueError(f"unknown id 0x{msg_recv[0]:X}")
         return msg_recv
 
-    def send_emcy(self, code: int):
-        msg = struct.pack("<BI", MsgId.EMCY_SEND.value, code)
+    def send_emcy(self, code: int, info: int = 0):
+        msg = struct.pack("<BHI", MsgId.SEND_EMCY.value, code, info)
         msg_recv = self._send_and_recv(msg)
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
     def send_tpdo(self, num: int):
-        msg = struct.pack("<2B", MsgId.TPDO_SEND.value, num)
+        msg = struct.pack("<2B", MsgId.SEND_TPDO.value, num)
         msg_recv = self._send_and_recv(msg)
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
-    def _pack_rw(self, msg_id: MsgId, entry: Entry, value: Any = None) -> bytes:
-        msg = struct.pack("<BH2B", msg_id.value, entry.index, entry.subindex, entry.data_type.value)
+    def _pack_rw(
+        self, msg_id: MsgId, entry: Entry, node_id: Optional[int] = None, value: Any = None
+    ) -> bytes:
+        msg = msg_id.value.to_bytes(1, "little")
+        msg += b"" if node_id is None else node_id.to_bytes(1, "little")
+        msg += struct.pack("<H2B", entry.index, entry.subindex, entry.data_type.value)
         if msg_id in (MsgId.OD_WRITE, MsgId.SDO_WRITE):
             if entry.data_type in [Datatype.OCTET_STRING, Datatype.DOMAIN]:
                 msg += value
@@ -149,7 +158,7 @@ class NodeClient:
         return msg
 
     def od_write(self, entry: Entry, value: Any):
-        msg = self._pack_rw(MsgId.OD_WRITE, entry, value)
+        msg = self._pack_rw(MsgId.OD_WRITE, entry, value=value)
 
         msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_OD_ABORT.value:
@@ -175,8 +184,8 @@ class NodeClient:
             value = struct.unpack("<" + DATA_TYPE_FMT_CHARS[entry.data_type], value)[0]
         return value
 
-    def sdo_write(self, entry: Entry, value: Any):
-        msg = self._pack_rw(MsgId.SDO_WRITE, entry, value)
+    def sdo_write(self, node_id: int, entry: Entry, value: Any):
+        msg = self._pack_rw(MsgId.SDO_READ, entry, node_id=node_id, value=value)
 
         msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_SDO_ABORT.value:
@@ -185,8 +194,8 @@ class NodeClient:
         if msg_recv != msg:
             raise ValueError("sent message did not match recv message")
 
-    def sdo_read(self, entry: Entry) -> Any:
-        msg = self._pack_rw(MsgId.SDO_READ, entry)
+    def sdo_read(self, node_id: int, entry: Entry) -> Any:
+        msg = self._pack_rw(MsgId.SDO_READ, entry, node_id=node_id)
 
         msg_recv = self._send_and_recv(msg)
         if msg_recv[0] == MsgId.ERROR_SDO_ABORT.value:

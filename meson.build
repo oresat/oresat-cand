@@ -10,8 +10,8 @@ project(
 )
 
 build_args = [
-  '-DCO_DRIVER_CUSTOM',
   '-DCO_MULTIPLE_OD',
+  '-DCO_DRIVER_CUSTOM',
   '-DPROJECT_NAME="' + meson.project_name() + '"',
   '-DPROJECT_VERSION="' + meson.project_version() + '"',
 ]

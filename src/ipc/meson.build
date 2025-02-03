@@ -17,6 +17,7 @@ libipc = shared_library(
   install : false,
   c_args: [
     '-DCO_MULTIPLE_OD',
+    '-DCO_DRIVER_CUSTOM',
   ],
 )
 

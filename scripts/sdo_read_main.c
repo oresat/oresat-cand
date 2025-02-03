@@ -57,7 +57,6 @@ int main(int argc, char* argv[]) {
     CO_SDO_abortCode_t abort_code = sdo_read_dynamic(CO->SDOclient, node_id, index, subindex, &data, &data_size);
     sdo_client_node_stop();
 
-
     if (abort_code == 0) {
         if ((argc == 5) || (!strncmp(argv[5], "bytes", strlen(argv[5])))) {
             uint8_t *tmp = (uint8_t *)data;
