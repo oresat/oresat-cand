@@ -65,31 +65,9 @@ static void ipc_can_event_emcy_cb(const uint16_t ident, const uint16_t error_cod
 
 ODR_t ipc_can_event_write_cb(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
     ODR_t r = OD_writeOriginal(stream, buf, count, countWritten);
-    if ((r != ODR_OK) && (r != ODR_PARTIAL)) {
-        return r;
-    }
-    ipc_can_event_t *ipc_can_event = (ipc_can_event_t *)stream->object;
-    uint8_t *data = stream->dataOrig;
-
-    // handle dynamic length data types
-    if (IS_STR_DTYPE(ipc_can_event->dtype)) {
-        if ((stream->dataOffset == 0U) && (ipc_can_event->buffer_len <= stream->dataLength)) {
-            if (ipc_can_event->buffer) {
-                ipc_can_event->buffer = realloc(ipc_can_event->buffer, stream->dataLength);
-            } else {
-                ipc_can_event->buffer = malloc(stream->dataLength);
-            }
-            ipc_can_event->buffer_len = stream->dataLength;
-        }
-
-        if (ipc_can_event->buffer != NULL) {
-            memcpy(&ipc_can_event->buffer[stream->dataOffset], buf, stream->dataLength);
-            data = ipc_can_event->buffer;
-        }
-    }
-
     if (r == ODR_OK) {
-        ipc_can_event_od_change(stream->index, stream->subIndex, ipc_can_event->dtype, data, stream->dataLength);
+        ipc_can_event_t *ipc_can_event = (ipc_can_event_t *)stream->object;
+        ipc_can_event_od_change(stream->index, stream->subIndex, ipc_can_event->dtype, stream->dataOrig, stream->dataLength);
     }
 
     return r;

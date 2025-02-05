@@ -43,8 +43,6 @@ struct tmp_data_t {
     uint16_t index;
     uint8_t subindex;
     char default_value[1024];
-    float high_limit;
-    float low_limit;
 };
 
 static void reset_tmp_data(struct tmp_data_t *data);
@@ -205,10 +203,6 @@ int dcf_od_load(const char *file_path, OD_t **od) {
             data.default_value[strlen(tmp)-1] = '\0';  // remove newline
         } else if (!strncmp(line, "SubNumber=", strlen("SubNumber="))) {
             parse_int_key(&line[strlen("SubNumber=")], &data.total_subindexes);
-        } else if (!strncmp(line, "HighLimit=", strlen("HighLimit="))) {
-            parse_float_key(&line[strlen("HighLimit=")], &data.high_limit);
-        } else if (!strncmp(line, "LowLimit=", strlen("LowLimit="))) {
-            parse_float_key(&line[strlen("LowLimit=")], &data.low_limit);
         }
     }
 
@@ -268,9 +262,6 @@ void dcf_od_free(OD_t *od) {
             if (entry->extension && entry->extension->object) {
                 ipc_can_event_t *ipc_can_event = (ipc_can_event_t *)&entry->extension->object;
                 if (ipc_can_event) {
-                    if (ipc_can_event->buffer) {
-                        free(ipc_can_event->buffer);
-                    }
                     free(ipc_can_event);
                 }
             }
@@ -355,8 +346,6 @@ static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data) {
             if (ipc_can_event) {
                 memset(ipc_can_event, 0, sizeof(ipc_can_event_t));
                 ipc_can_event->dtype = data->data_type;
-                ipc_can_event->high_limit = data->high_limit;
-                ipc_can_event->low_limit = data->low_limit;
                 ext->object = ipc_can_event;
                 ext->read = OD_readOriginal;
                 ext->write = ipc_can_event_write_cb;
@@ -502,8 +491,6 @@ static void reset_tmp_data(struct tmp_data_t *data) {
     data->subindex = 0;
     data->total_subindexes = 0;
     data->default_value[0] = 0;
-    data->high_limit = 0.0;
-    data->low_limit = 0.0;
 }
 
 static int parse_index_header(const char *line, uint16_t *index) {

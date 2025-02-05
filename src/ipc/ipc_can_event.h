@@ -4,11 +4,7 @@
 #include "CANopen.h"
 
 typedef struct {
-    uint8_t *buffer;
-    size_t buffer_len;
     uint8_t dtype;
-    float low_limit;
-    float high_limit;
 } ipc_can_event_t;
 
 void ipc_can_event_init(void *context, CO_t *co);
