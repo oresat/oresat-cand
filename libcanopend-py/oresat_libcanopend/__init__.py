@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from threading import Thread
 
 import zmq
+from zmq.utils.monitor import recv_monitor_message
 
 try:
     from ._version import version as __version__
@@ -110,6 +111,7 @@ class NodeClient:
         self._socket.connect(f"tcp://{addr}:5555")
         self._socket.setsockopt(zmq.RCVTIMEO, 1500)
         self._socket.setsockopt(zmq.LINGER, 0)
+        self._monitor = self._socket.get_monitor_socket()
         self._sub_socket = self._context.socket(zmq.SUB)
         self._sub_socket.connect(f"tcp://{addr}:5556")
         self._sub_socket.setsockopt(zmq.SUBSCRIBE, b"")
@@ -118,6 +120,15 @@ class NodeClient:
         self._emcy_cb = None
         self._thread = Thread(target=self._sub_thread, daemon=True)
         self._thread.start()
+        self._m_thread = Thread(target=self._monitor_thread, daemon=True)
+        self._m_thread.start()
+        self._last_event = zmq.Event.CLOSED
+
+    def _monitor_thread(self):
+
+        while self._monitor.poll():
+            event = recv_monitor_message(self._monitor)
+            self._last_event = event['event']
 
     def _sub_thread(self):
         while True:
@@ -150,7 +161,14 @@ class NodeClient:
     def _send_and_recv(self, msg: bytes) -> bytes:
         if self._debug:
             print("SEND: " + msg.hex().upper())
-        self._socket.send(msg)
+
+        if self._last_event != zmq.Event.HANDSHAKE_SUCCEEDED:
+            raise ValueError('connection down')
+
+        try:
+            self._socket.send(msg)
+        except Exception:
+            raise ValueError("send failed")
 
         try:
             msg_recv = self._socket.recv()
