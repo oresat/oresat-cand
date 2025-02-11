@@ -18,7 +18,7 @@ class DataType(DataTypeDef, Enum):
     INT32 = 0x4, (int,), "i"
     UINT8 = 0x5, (int,), "B"
     UINT16 = 0x6, (int,), "H"
-    UINT32 = 0x7, (int,), "B"
+    UINT32 = 0x7, (int,), "I"
     FLOAT32 = 0x8, (float,), "f"
     FLOAT64 = 0x9, (float,), "d"
     STR = 0xA, (str,), None
@@ -90,18 +90,24 @@ class Entry(EntryDef, Enum):
 
     def raw_to_value(self, raw: bytes) -> Any:
         value = raw
-        if self.data_type == DataType.STR:
-            value = raw.decode()
-        elif self.data_type not in [DataType.BYTES, DataType.DOMAIN]:
-            value = struct.unpack("<" + self.data_type.fmt, raw)[0]
+        try:
+            if self.data_type == DataType.STR:
+                value = raw.decode()
+            elif self.data_type not in [DataType.BYTES, DataType.DOMAIN]:
+                value = struct.unpack("<" + self.data_type.fmt, raw)[0]
+        except Exception as e:
+            raise ValueError(f"{self.name} raw_to_value {e}")
         return value
 
     def value_to_raw(self, value: Any) -> bytes:
         raw = value
-        if self.data_type == DataType.STR:
-            raw = value.encode()
-        elif self.data_type not in [DataType.BYTES, DataType.DOMAIN]:
-            raw = struct.pack("<" + self.data_type.fmt, value)
-        if raw is None:
-            raw = b""
+        try:
+            if self.data_type == DataType.STR:
+                raw = value.encode()
+            elif self.data_type not in [DataType.BYTES, DataType.DOMAIN]:
+                raw = struct.pack("<" + self.data_type.fmt, value)
+            if raw is None:
+                raw = b""
+        except Exception as e:
+            raise ValueError(f"{self.name} value_to_raw {e}")
         return raw

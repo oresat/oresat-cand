@@ -4,7 +4,7 @@ from typing import ClassVar
 
 
 @dataclass
-class MsgBase:
+class MessageBase:
     _fmt: ClassVar[str]
     id: ClassVar[int]
 
@@ -24,7 +24,7 @@ class MsgBase:
 
 
 @dataclass
-class MsgDynamicBase:
+class MessageDynamicBase:
     _fmt: ClassVar[str]
     id: ClassVar[int]
 
@@ -42,7 +42,7 @@ class MsgDynamicBase:
 
 
 @dataclass
-class MsgEmcySend(MsgBase):
+class MessageEmcySend(MessageBase):
     _fmt: ClassVar[str] = "BII"
     id: ClassVar[int] = 0x0
     code: int
@@ -50,14 +50,14 @@ class MsgEmcySend(MsgBase):
 
 
 @dataclass
-class MsgTpdoSend(MsgBase):
+class MessageTpdoSend(MessageBase):
     _fmt: ClassVar[str] = "BB"
     id: ClassVar[int] = 0x1
     num: int
 
 
 @dataclass
-class MsgOdRead(MsgDynamicBase):
+class MessageOdRead(MessageDynamicBase):
     _fmt: ClassVar[str] = "BHBB"
     id: ClassVar[int] = 0x2
     index: int
@@ -67,7 +67,7 @@ class MsgOdRead(MsgDynamicBase):
 
 
 @dataclass
-class MsgOdWrite(MsgDynamicBase):
+class MessageOdWrite(MessageDynamicBase):
     _fmt: ClassVar[str] = "BHBB"
     id: ClassVar[int] = 0x3
     index: int
@@ -77,7 +77,7 @@ class MsgOdWrite(MsgDynamicBase):
 
 
 @dataclass
-class MsgSdoRead(MsgDynamicBase):
+class MessageSdoRead(MessageDynamicBase):
     _fmt: ClassVar[str] = "BBHBB"
     id: ClassVar[int] = 0x4
     node_id: int
@@ -88,7 +88,7 @@ class MsgSdoRead(MsgDynamicBase):
 
 
 @dataclass
-class MsgSdoWrite(MsgDynamicBase):
+class MessageSdoWrite(MessageDynamicBase):
     _fmt: ClassVar[str] = "BBHBB"
     id: ClassVar[int] = 0x5
     node_id: int
@@ -99,14 +99,14 @@ class MsgSdoWrite(MsgDynamicBase):
 
 
 @dataclass
-class MsgReqPort(MsgBase):
+class MessageReqPort(MessageBase):
     _fmt: ClassVar[str] = "BI"
     id: ClassVar[int] = 0x6
     port: int
 
 
 @dataclass
-class MsgOwnEntry(MsgBase):
+class MessageOwnEntry(MessageBase):
     _fmt: ClassVar[str] = "BI"
     id: ClassVar[int] = 0x7
     index: int
@@ -114,25 +114,25 @@ class MsgOwnEntry(MsgBase):
 
 
 @dataclass
-class MsgError(MsgBase):
+class MessageError(MessageBase):
     _fmt: ClassVar[str] = "B"
     id: ClassVar[int] = 0x80
 
 
 @dataclass
-class MsgErrorUnknownId(MsgBase):
+class MessageErrorUnknownId(MessageBase):
     _fmt: ClassVar[str] = "B"
     id: ClassVar[int] = 0x81
 
 
 @dataclass
-class MsgErrorLength(MsgBase):
+class MessageErrorLength(MessageBase):
     _fmt: ClassVar[str] = "B"
     id: ClassVar[int] = 0x82
 
 
 @dataclass
-class MsgErrorAbort(MsgBase):
+class MessageErrorAbort(MessageBase):
     _fmt: ClassVar[str] = "BI"
     id: ClassVar[int] = 0x83
     code: int

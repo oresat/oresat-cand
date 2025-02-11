@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 from threading import Thread
 from dataclasses import dataclass
@@ -5,7 +6,7 @@ from typing import Optional, Union, Callable, Any
 
 import zmq
 
-from . import msg
+from . import message
 from .entry import Entry
 
 
@@ -23,103 +24,130 @@ class NodeClient:
 
     def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
         self._data = {entry: LocalData(entry.default) for entry in list(entries)}
+        self._lookup_entry = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
         self._debug = debug
 
         self._context = zmq.Context()
 
-        self._req_socket = self._context.socket(zmq.REQ)
-        self._req_socket.connect(f"tcp://{addr}:5555")
-        self._req_socket.setsockopt(zmq.RCVTIMEO, self.RECV_TIMEOUT_MS)
-        self._req_socket.setsockopt(zmq.LINGER, 0)
+        self._command_socket = self._context.socket(zmq.REQ)
+        self._command_socket.connect(f"tcp://{addr}:6000")
+        self._command_socket.setsockopt(zmq.RCVTIMEO, self.RECV_TIMEOUT_MS)
+        self._command_socket.setsockopt(zmq.LINGER, 0)
 
-        self._thread = Thread(target=self._res_thread, daemon=True)
-        self._thread.start()
+        self._broadcast_socket = self._context.socket(zmq.PUB)
+        self._broadcast_socket.connect(f"tcp://{addr}:6001")
 
-    def _res_thread(self):
-        entries = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
+        self._consume_socket = self._context.socket(zmq.SUB)
+        self._consume_socket.connect(f"tcp://{addr}:6002")
+        self._consume_thread = Thread(target=self._consume_thread_run, daemon=True)
+        self._consume_thread.start()
 
-        request = msg.MsgReqPort(0).pack()
+        self._reply_thread = Thread(target=self._reply_thread_run, daemon=True)
+        self._reply_thread.start()
+
+    def _consume_thread_run(self):
+        while True:
+            msg_recv = self._consume_socket.recv()
+            if self._debug:
+                logging.debug("RECV: " + msg_recv.hex().upper())
+            if (
+                len(msg_recv) < message.MessageOdWrite.size
+                or msg_recv[0] != message.MessageOdWrite.id
+            ):
+                logging.debug(f"invalid od write message {msg_recv.hex().upper()}")
+                continue
+
+            try:
+                msg_od_write = message.MessageOdWrite.unpack(msg_recv)
+                entry = self._lookup_entry[(msg_od_write.index, msg_od_write.subindex)]
+                value = entry.raw_to_value(msg_od_write.raw)
+                if self._data[entry].write_cb is None:
+                    self._data[entry].value = value
+                else:
+                    self._data[entry].write_cb(value)
+            except Exception as e:
+                logging.error(f"consume error {entry.name} {e}")
+
+    def _reply_thread_run(self):
+        request = message.MessageReqPort(0).pack()
+
         while True:
             try:
-                response = self._req_socket.send(request)
+                response = self._command_socket.send(request)
                 if response is not None:
-                    msg_req_port = msg.MsgReqPort(response)
+                    msg_req_port = message.MessageReqPort(response)
                     break
             except Exception:
                 continue
 
-        res_socket = self._context.socket(zmq.REP)
-        res_socket.connect(f"tcp://*:{msg_req_port.port}")
-        res_socket.setsockopt(zmq.RCVTIMEO, self.RECV_TIMEOUT_MS)
+        reply_socket = self._context.socket(zmq.REP)
+        reply_socket.connect(f"tcp://*:{msg_req_port.port}")
 
         while True:
-            request = res_socket.recv()
+            request = reply_socket.recv()
             try:
-                if request[0] == msg.MsgOdWrite.id:
-                    msg_od_write = msg.MsgOdWrite.unpack(request)
-                    entry = entries[(msg_od_write.index, msg_od_write.subindex)]
+                if request[0] == message.MessageOdWrite.id:
+                    msg_od_write = message.MessageOdWrite.unpack(request)
+                    entry = self._lookup_entry[(msg_od_write.index, msg_od_write.subindex)]
                     value = entry.raw_to_value(msg_od_write.raw)
                     self.od_write(entry, value)
-                    res_socket.send(msg_od_write.pack())
-                elif request[0] == msg.MsgOdRead.id:
-                    msg_od_read = msg.MsgOdRead.unpack(request)
-                    entry = entries[(msg_od_write.index, msg_od_write.subindex)]
+                    reply_socket.send(msg_od_write.pack())
+                elif request[0] == message.MessageOdRead.id:
+                    msg_od_read = message.MessageOdRead.unpack(request)
+                    entry = self._lookup_entry[(msg_od_write.index, msg_od_write.subindex)]
                     value = self.od_read(entry)
                     msg_od_read.raw = entry.value_to_raw(value)
-                    res_socket.send(msg_od_read.pack())
+                    reply_socket.send(msg_od_read.pack())
                 else:
-                    res_socket.send(msg.MsgErrorUnknownId().pack())
-            except Exception:
-                continue
+                    reply_socket.send(message.MessageErrorUnknownId().pack())
+            except Exception as e:
+                logging.error(f"reply error {entry.name} {e}")
 
     def _send_and_recv(self, req_msg, response_match_check: bool = False):
         req_msg_raw = req_msg.pack()
         if self._debug:
-            print("SEND: " + req_msg_raw.hex().upper())
+            logging.debug("SEND: " + req_msg_raw.hex().upper())
 
-        self._req_socket.send(req_msg_raw)
+        self._command_socket.send(req_msg_raw)
 
-        res_msg_raw = self._req_socket.recv()
+        res_msg_raw = self._command_socket.recv()
         if self._debug:
-            print("RECV: " + res_msg_raw.hex().upper())
+            logging.debug("RECV: " + res_msg_raw.hex().upper())
 
         res_msg = req_msg.unpack(res_msg_raw)
         if response_match_check and res_msg_raw != req_msg_raw:
             raise ValueError("sent message did not match recv message")
         return res_msg
 
-    def send_emcy(self, code: int, info: int = 0, raise_send_error: bool = False):
+    def _broadcast(self, msg: bytes):
         try:
-            req_msg = msg.MsgEmcySend(code, info)
-            self._send_and_recv(req_msg)
-        except Exception as e:
-            if raise_send_error:
-                raise e
+            self._broadcast_socket.send(msg)
+        except Exception:
+            pass
 
-    def send_tpdo(self, num: int, raise_send_error: bool = False):
-        try:
-            req_msg = msg.MsgTpdoSend(num).pack()
-            self._send_and_recv(req_msg)
-        except Exception as e:
-            if raise_send_error:
-                raise e
+    def send_emcy(self, code: int, info: int = 0):
+        self._broadcast(message.MessageEmcySend(code, info))
+
+    def _send_tpdo(self, num: int):
+        self._broadcast(message.MessageTpdoSend(num).pack())
+
+    def send_tpdo(self, num: Union[int, list[int]]):
+        if isinstance(num, int):
+            self._send_tpdo(num)
+        else:
+            for n in num:
+                self._send_tpdo(n)
 
     def od_write(self, entry: Entry, value: Any):
+        if not isinstance(value, entry.data_type.py_types):
+            raise ValueError(f"value {value} ({type(value)}) invalid for {entry.data_type}")
         if isinstance(value, Enum) and entry.enum:
             value = value.value
 
-        if not self._data[entry].owner:
-            raw = entry.value_to_raw(value)
-            req_msg = msg.MsgOdWrite(entry.index, entry.subindex, entry.data_type.id, raw)
-            res_msg = self._send_and_recv(req_msg)
-            value = entry.raw_to_value(res_msg.raw)
-            self._data[entry].value = value
-        elif self._data[entry].write_cb is None:
-            if not isinstance(value, entry.data_type.py_types):
-                raise ValueError(f"value {value} ({type(value)}) invalid for {entry.data_type}")
-            self._data[entry].value = value
-        else:
-            self._data[entry].write_cb(value)
+        self._data[entry].value = value
+        raw = entry.value_to_raw(value)
+        req_msg = message.MessageOdWrite(entry.index, entry.subindex, entry.data_type.id, raw)
+        self._broadcast(req_msg)
 
     def od_write_multi(self, data: dict[Entry, Any]):
         for entry, value in data.items():
@@ -127,11 +155,7 @@ class NodeClient:
 
     def od_read(self, entry: Entry, use_enum: bool = True) -> Any:
         value = self._data[entry].value
-        if not self._data[entry].owner:
-            req_msg = msg.MsgOdRead(entry.index, entry.subindex, entry.data_type.id, b"")
-            res_msg = self._send_and_recv(req_msg)
-            value = entry.raw_to_value(res_msg.raw)
-        elif self._data[entry].read_cb is not None:
+        if self._data[entry].read_cb is not None:
             value = self._data[entry].read_cb()
 
         if use_enum and entry.enum and isinstance(value, int):
@@ -140,13 +164,17 @@ class NodeClient:
 
     def sdo_write(self, node_id: int, entry: Entry, value: Any):
         raw = entry.value_to_raw(value)
-        req_msg = msg.MsgSdoWrite(node_id, entry.index, entry.subindex, entry.data_type.id, raw)
+        req_msg = message.MessageSdoWrite(
+            node_id, entry.index, entry.subindex, entry.data_type.id, raw
+        )
         res_msg = self._send_and_recv(req_msg)
         value = entry.raw_to_value(res_msg.raw)
         self._data[entry].value = value
 
     def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
-        req_msg = msg.MsgSdoRead(node_id, entry.index, entry.subindex, entry.data_type.id, b"")
+        req_msg = message.MessageSdoRead(
+            node_id, entry.index, entry.subindex, entry.data_type.id, b""
+        )
         res_msg = self._send_and_recv(req_msg)
         value = entry.raw_to_value(res_msg.raw)
         if use_enum and entry.enum and isinstance(value, int):
@@ -158,7 +186,7 @@ class NodeClient:
         self._data[entry].read_cb = read_cb
         self._data[entry].write_cb = write_cb
         try:
-            req_msg = msg.MsgOwnEntry(entry.index, entry.subindex)
+            req_msg = message.MessageOwnEntry(entry.index, entry.subindex)
             res_msg = self._send_and_recv(req_msg)
             self._data[entry].ownership_ack = req_msg == res_msg
         except Exception:
