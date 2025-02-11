@@ -128,15 +128,17 @@ class NodeClient:
     def send_emcy(self, code: int, info: int = 0):
         self._broadcast(message.MessageEmcySend(code, info))
 
-    def _send_tpdo(self, num: int):
-        self._broadcast(message.MessageTpdoSend(num).pack())
+    def send_tpdo(self, tpdo: Union[int, Enum, list[int], list[Enum]]):
+        def _send_tpdo(num: Union[int, Enum]):
+            if isinstance(num, Enum):
+                num = num.value
+            self._broadcast(message.MessageTpdoSend(num).pack())
 
-    def send_tpdo(self, num: Union[int, list[int]]):
-        if isinstance(num, int):
-            self._send_tpdo(num)
+        if isinstance(tpdo, (int, Enum)):
+            _send_tpdo(tpdo)
         else:
-            for n in num:
-                self._send_tpdo(n)
+            for t in tpdo:
+                _send_tpdo(t)
 
     def od_write(self, entry: Entry, value: Any):
         if not isinstance(value, entry.data_type.py_types):
@@ -191,10 +193,3 @@ class NodeClient:
             self._data[entry].ownership_ack = req_msg == res_msg
         except Exception:
             pass
-
-    def request_ownership_multi(self, data: list):
-        for d in data:
-            if isinstance(d, Entry):
-                self.request_ownership(d)
-            else:
-                self.request_ownership(*d)
