@@ -3,5 +3,13 @@ try:
 except ImportError:
     __version__ = "0"
 
-from .entry import Entry, DataType, EntryBitField
+from .entry import DataType, Entry, EntryBitField
 from .node_client import NodeClient
+
+__all__ = [
+    "DataType",
+    "Entry",
+    "EntryBitField",
+    "NodeClient",
+    "__version__",
+]
