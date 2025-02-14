@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from threading import Lock, Thread
 from typing import Any, Callable, Optional, Union
+from time import sleep
 
 import zmq
 
@@ -62,7 +63,7 @@ class NodeClient:
         while True:
             msg_recv = self._consume_socket.recv()
             if self._debug:
-                logging.debug("RECV: " + msg_recv.hex().upper())
+                logging.debug("CONSUME: " + msg_recv.hex().upper())
             if len(msg_recv) < OdWriteMessage.size or msg_recv[0] != OdWriteMessage.id:
                 logging.debug(f"invalid od write message {msg_recv.hex().upper()}")
                 continue
@@ -87,7 +88,7 @@ class NodeClient:
                 self._reply_port = res_msg.port
                 break
             except Exception:
-                continue
+                sleep(1)
 
         reply_socket = self._context.socket(zmq.REP)
         reply_socket.connect(f"tcp://*:{self._reply_port}")
@@ -96,6 +97,9 @@ class NodeClient:
             request = reply_socket.recv()
             if request is None or len(request) == 0:
                 continue
+
+            if self._debug:
+                logging.debug("SERVER REQ: " + request.hex().upper())
 
             if request[0] == OdWriteMessage.id:
                 try:
@@ -125,6 +129,8 @@ class NodeClient:
             else:
                 reply = UnknownIdErrorMessage().pack()
 
+            if self._debug:
+                logging.debug("SERVER REPLY: " + reply.hex().upper())
             try:
                 reply_socket.send(reply)
             except Exception:
@@ -136,12 +142,12 @@ class NodeClient:
             req_msg_raw = req_msg.pack()
 
             if self._debug:
-                logging.debug("SEND: " + req_msg_raw.hex().upper())
+                logging.debug("CLIENT SEND: " + req_msg_raw.hex().upper())
             self._command_socket.send(req_msg_raw)
 
             res_msg_raw = self._command_socket.recv()
             if self._debug:
-                logging.debug("RECV: " + res_msg_raw.hex().upper())
+                logging.debug("CLIENT RECV: " + res_msg_raw.hex().upper())
 
             res_msg = req_msg.unpack(res_msg_raw)
         except Exception as e:
@@ -151,8 +157,11 @@ class NodeClient:
         return res_msg
 
     def _broadcast(self, msg):
+        msg_raw = msg.pack()
+        if self._debug:
+            logging.debug("BROADCAST: " + msg_raw.hex().upper())
         try:
-            self._broadcast_socket.send(msg.pack())
+            self._broadcast_socket.send(msg_raw)
         except Exception:
             pass
 
