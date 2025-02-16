@@ -206,7 +206,6 @@ class NodeClient:
         req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, raw)
         res_msg = self._send_and_recv(req_msg)
         value = entry.raw_to_value(res_msg.raw)
-        self._data[entry].value = value
 
     def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
         req_msg = SdoReadMessage(node_id, entry.index, entry.subindex, b"")

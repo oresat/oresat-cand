@@ -20,11 +20,11 @@ class DataType(DataTypeDef, Enum):
     UINT16 = 0x6, (int,), "H"
     UINT32 = 0x7, (int,), "I"
     FLOAT32 = 0x8, (float,), "f"
-    FLOAT64 = 0x9, (float,), "d"
-    STR = 0xA, (str,), None
-    BYTES = 0xB, (bytes, bytearray), None
-    DOMAIN = 0xC, (bytes, bytearray, None), None
-    INT64 = 0x11, (int,), "q"
+    STR = 0x9, (str,), None
+    BYTES = 0xA, (bytes, bytearray), None
+    DOMAIN = 0xF, (bytes, bytearray, None), None
+    FLOAT64 = 0x11, (float,), "d"
+    INT64 = 0x15, (int,), "q"
     UINT64 = 0x1B, (int,), "Q"
 
     @property
