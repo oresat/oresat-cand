@@ -181,14 +181,14 @@ class NodeClient:
                 _send_tpdo(t)
 
     def od_write(self, entry: Entry, value: Any):
-        if not isinstance(value, entry.data_type.py_types):
-            raise ValueError(f"value {value} ({type(value)}) invalid for {entry.data_type}")
         if isinstance(value, Enum) and entry.enum:
             value = value.value
+        if not isinstance(value, entry.data_type.py_types):
+            raise ValueError(f"value {value} ({type(value)}) invalid for {entry.data_type}")
 
         self._data[entry].value = value
         raw = entry.value_to_raw(value)
-        self._broadcast(OdWriteMessage(entry.index, entry.subindex, entry.data_type.id, raw))
+        self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
 
     def od_write_multi(self, data: dict[Entry, Any]):
         for entry, value in data.items():
@@ -203,13 +203,13 @@ class NodeClient:
 
     def sdo_write(self, node_id: int, entry: Entry, value: Any):
         raw = entry.value_to_raw(value)
-        req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, entry.data_type.id, raw)
+        req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, raw)
         res_msg = self._send_and_recv(req_msg)
         value = entry.raw_to_value(res_msg.raw)
         self._data[entry].value = value
 
     def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
-        req_msg = SdoReadMessage(node_id, entry.index, entry.subindex, entry.data_type.id, b"")
+        req_msg = SdoReadMessage(node_id, entry.index, entry.subindex, b"")
         res_msg = self._send_and_recv(req_msg)
         value = entry.raw_to_value(res_msg.raw)
         if use_enum and entry.enum and isinstance(value, int):

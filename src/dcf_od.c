@@ -9,7 +9,6 @@
 #include "301/CO_ODinterface.h"
 #include "logger.h"
 #include "str2buf.h"
-#include "ipc_can_event.h"
 #include "dcf_od.h"
 
 #define VARIABLE 0x7
@@ -52,7 +51,6 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
 static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data);
 static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int sub_offset);
 static bool parse_int_key(const char *string, int *value);
-static bool parse_float_key(const char *string, float *value);
 static uint8_t get_acces_attr(char *access_type);
 
 int dcf_od_load(const char *file_path, OD_t **od) {
@@ -258,15 +256,6 @@ void dcf_od_free(OD_t *od) {
             continue;
         }
 
-        if (entry->index >= 0x4000) {
-            if (entry->extension && entry->extension->object) {
-                ipc_can_event_t *ipc_can_event = (ipc_can_event_t *)&entry->extension->object;
-                if (ipc_can_event) {
-                    free(ipc_can_event);
-                }
-            }
-        }
-
         if (entry->odObjectType == ODT_VAR) {
             var = entry->odObject;
             if (var->dataOrig != NULL) {
@@ -318,16 +307,6 @@ static bool parse_int_key(const char *string, int *value) {
     return r;
 }
 
-static bool parse_float_key(const char *string, float *value) {
-    int r;
-    float tmp;
-    r = sscanf(string, "%f", &tmp);
-    if (r == 1) {
-        *value = tmp;
-    }
-    return r;
-}
-
 static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data) {
     if (!entry || !data) {
         return -1;
@@ -336,25 +315,6 @@ static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data) {
     entry->index = data->index;
     entry->subEntriesCount = MAX(data->total_subindexes, 1);
     entry->odObject = NULL;
-
-    if (entry->index < 0x4000) {
-        entry->extension = NULL;
-    } else {
-        OD_extension_t *ext = malloc(sizeof(OD_extension_t));
-        if (ext) {
-            ipc_can_event_t *ipc_can_event = malloc(sizeof(ipc_can_event_t));
-            if (ipc_can_event) {
-                memset(ipc_can_event, 0, sizeof(ipc_can_event_t));
-                ipc_can_event->dtype = data->data_type;
-                ext->object = ipc_can_event;
-                ext->read = OD_readOriginal;
-                ext->write = ipc_can_event_write_cb;
-                OD_extension_init(entry, ext);
-            } else {
-                free(ext);
-            }
-        }
-    }
 
     int size;
     if (data->object_type == VARIABLE) {

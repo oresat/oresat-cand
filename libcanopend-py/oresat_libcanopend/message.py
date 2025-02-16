@@ -58,43 +58,39 @@ class TpdoSendMessage(Message):
 
 @dataclass
 class OdReadMessage(DynamicMessage):
-    _fmt: ClassVar[str] = "BHBB"
+    _fmt: ClassVar[str] = "BHB"
     id: ClassVar[int] = 0x2
     index: int
     subindex: int
-    data_type: int
     raw: bytes
 
 
 @dataclass
 class OdWriteMessage(DynamicMessage):
-    _fmt: ClassVar[str] = "BHBB"
+    _fmt: ClassVar[str] = "BHB"
     id: ClassVar[int] = 0x3
     index: int
     subindex: int
-    data_type: int
     raw: bytes
 
 
 @dataclass
 class SdoReadMessage(DynamicMessage):
-    _fmt: ClassVar[str] = "BBHBB"
+    _fmt: ClassVar[str] = "BBHB"
     id: ClassVar[int] = 0x4
     node_id: int
     index: int
     subindex: int
-    data_type: int
     raw: bytes
 
 
 @dataclass
 class SdoWriteMessage(DynamicMessage):
-    _fmt: ClassVar[str] = "BBHBB"
+    _fmt: ClassVar[str] = "BBHB"
     id: ClassVar[int] = 0x5
     node_id: int
     index: int
     subindex: int
-    data_type: int
     raw: bytes
 
 

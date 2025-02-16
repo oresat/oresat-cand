@@ -43,7 +43,8 @@ static CO_config_t config;
 static uint8_t CO_activeNodeId = 0x7C;
 static CO_epoll_t epRT;
 static void* rt_thread(void* arg);
-static void* ipc_thread(void* arg);
+static void* ipc_responder_thread(void* arg);
+static void* ipc_consumer_thread(void* arg);
 static volatile sig_atomic_t CO_endProgram = 0;
 
 static void
@@ -107,7 +108,8 @@ main(int argc, char* argv[]) {
     int programExit = EXIT_SUCCESS;
     CO_epoll_t epMain;
     pthread_t rt_thread_id;
-    pthread_t ipc_thread_id;
+    pthread_t ipc_responder_thread_id;
+    pthread_t ipc_consumer_thread_id;
     int rtPriority = -1;
     CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
     CO_ReturnError_t err;
@@ -236,7 +238,7 @@ main(int argc, char* argv[]) {
     log_info("fread cache path: %s", fread_cache->dir_path);
     log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
-    ipc_init(CO);
+    ipc_init(od);
 
     os_command_extension_init(od);
     ecss_time_extension_init(od);
@@ -318,8 +320,14 @@ main(int argc, char* argv[]) {
                     continue;
                 }
             }
-            if (pthread_create(&ipc_thread_id, NULL, ipc_thread, NULL) != 0) {
-                log_printf(LOG_CRIT, DBG_ERRNO, "pthread_create(ipc_thread)");
+            if (pthread_create(&ipc_responder_thread_id, NULL, ipc_responder_thread, NULL) != 0) {
+                log_printf(LOG_CRIT, DBG_ERRNO, "pthread_create(ipc_responder_thread)");
+                programExit = EXIT_FAILURE;
+                CO_endProgram = 1;
+                continue;
+            }
+            if (pthread_create(&ipc_consumer_thread_id, NULL, ipc_consumer_thread, NULL) != 0) {
+                log_printf(LOG_CRIT, DBG_ERRNO, "pthread_create(ipc_consumer_thread)");
                 programExit = EXIT_FAILURE;
                 CO_endProgram = 1;
                 continue;
@@ -353,13 +361,17 @@ main(int argc, char* argv[]) {
 
     CO_endProgram = 1;
 
-    ipc_free();
+    ipc_free(od);
 
     if (pthread_join(rt_thread_id, NULL) != 0) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
         exit(EXIT_FAILURE);
     }
-    if (pthread_join(ipc_thread_id, NULL) != 0) {
+    if (pthread_join(ipc_responder_thread_id, NULL) != 0) {
+        log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
+        exit(EXIT_FAILURE);
+    }
+    if (pthread_join(ipc_consumer_thread_id, NULL) != 0) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
         exit(EXIT_FAILURE);
     }
@@ -395,10 +407,20 @@ rt_thread(void* arg) {
 }
 
 static void*
-ipc_thread(void* arg) {
+ipc_responder_thread(void* arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_process(CO, od, &config);
+        ipc_responder_process(CO, od, &config);
+        sleep_ms(10);
+    }
+    return NULL;
+}
+
+static void*
+ipc_consumer_thread(void* arg) {
+    (void)arg;
+    while (CO_endProgram == 0) {
+        ipc_consumer_process(CO, od, &config);
         sleep_ms(10);
     }
     return NULL;

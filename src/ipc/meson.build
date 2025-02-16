@@ -1,6 +1,5 @@
 libipc_files = [
   'ipc.c',
-  'ipc_can_event.c',
 ]
 
 libipc_includes = include_directories('.')
@@ -14,6 +13,7 @@ libipc = shared_library(
     dependency('libzmq'),
     libcommon_dep,
     libcanopenlinux_dep,
+    libodextensions_dep,
   ],
   install : false,
   c_args: [
