@@ -13,7 +13,7 @@ class Message:
         return struct.calcsize(self._fmt)
 
     def pack(self) -> bytes:
-        return struct.pack(self._fmt, self.id, *astuple(self))
+        return struct.pack("<" + self._fmt, self.id, *astuple(self))
 
     @classmethod
     def unpack(cls, raw: bytes):
@@ -103,10 +103,12 @@ class RequestPortMessage(Message):
 
 @dataclass
 class RequestOwnershipMessage(Message):
-    _fmt: ClassVar[str] = "BI"
+    _fmt: ClassVar[str] = "BHB??"
     id: ClassVar[int] = 0x7
     index: int
     subindex: int
+    read: bool
+    write: bool
 
 
 @dataclass

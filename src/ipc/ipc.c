@@ -39,7 +39,6 @@ static void *consumer = NULL;
 
 static requestor_t *requestor_list = NULL;
 static uint8_t requestors = 0;
-static pthread_mutex_t reqestor_mutex;
 
 static ODR_t ipc_od_write_cb(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten);
 static ODR_t ipc_od_read_cb(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead);
@@ -53,6 +52,7 @@ void ipc_init(OD_t *od) {
     broadcaster = zmq_socket(context, ZMQ_PUB);
     zmq_bind(broadcaster, "tcp://*:6001");
     consumer = zmq_socket(context, ZMQ_SUB);
+    zmq_setsockopt(consumer, ZMQ_SUBSCRIBE, NULL, 0);
     zmq_bind(consumer, "tcp://*:6002");
 
     for (size_t i=0; i < od->size; i++) {
@@ -116,7 +116,6 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
     static uint8_t buffer_out[BUFFER_SIZE];
 
     uint8_t header[ZMQ_HEADER_LEN];
-    uint32_t requestor_id = *(uint32_t *)&header[1]; // 0th bytes is 0
 
     zmq_msg_t msg;
     int r = zmq_msg_init(&msg);
@@ -126,12 +125,17 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
 
     int nbytes = 0;
     nbytes = zmq_msg_recv(&msg, responder, 0);
-    if (nbytes == -1) {
+    if (nbytes != ZMQ_HEADER_LEN) {
         log_error("zmq msg recv header error %d", errno);
+        zmq_msg_close(&msg);
+        return;
+    } else if (nbytes != ZMQ_HEADER_LEN) {
+        log_error("unexpected header len %d", nbytes);
         zmq_msg_close(&msg);
         return;
     }
     memcpy(header, zmq_msg_data(&msg), nbytes);
+    uint32_t requestor_id = *(uint32_t *)&header[1]; // 0th bytes is 0
 
     nbytes = zmq_msg_recv(&msg, responder, 0);
     if (nbytes != 0) {
@@ -142,15 +146,15 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
 
     nbytes = zmq_msg_recv(&msg, responder, 0);
     if (nbytes == -1) {
-        log_error("zmq msg recv header error %d", errno);
+        log_error("zmq msg recv error %d", errno);
         zmq_msg_close(&msg);
         return;
     }
     memcpy(&buffer_in, zmq_msg_data(&msg), nbytes);
+    int buffer_in_recv = nbytes;
 
     zmq_msg_close(&msg);
 
-    int buffer_in_recv = nbytes;
     int buffer_out_send = 0;
 
     // default response
@@ -158,17 +162,18 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
     buffer_out_send = 1;
 
     switch (buffer_in[0]) {
-        case IPC_MSG_ID_NEW_CLIENT:
+        case IPC_MSG_ID_REQUEST_PORT:
         {
-            if (buffer_in_recv != sizeof(ipc_msg_new_client_t)) {
+            if (buffer_in_recv == sizeof(ipc_msg_request_port_t)) {
                 requestor_t *new_requestor = NULL;
 
                 if (requestors == 0) {
                     next_requestor_port = REQUESTOR_DEFAULT_PORT;
                     requestor_list = malloc(sizeof(requestor_t));
-                    new_requestor = requestor_list;
+                    if (requestor_list) {
+                        new_requestor = requestor_list;
+                    }
                 } else {
-                    next_requestor_port++;
                     void *tmp = realloc(requestor_list, sizeof(requestor_t) * (requestors + 1));
                     if (tmp) {
                         requestor_list = tmp;
@@ -184,15 +189,20 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                     requestors++;
                     new_requestor->id = requestor_id;
                     new_requestor->port = next_requestor_port;
+                    new_requestor->socket = zmq_socket(context, ZMQ_ROUTER);
                     sprintf(addr, "tcp://*:%d", new_requestor->port);
                     zmq_bind(new_requestor->socket, addr);
-                    printf("new client 0x%X at port %d\n", new_requestor->id, new_requestor->port);
+
+                    int timeout_ms = 1;
+                    zmq_setsockopt(new_requestor->socket, ZMQ_RCVTIMEO, &timeout_ms, sizeof(timeout_ms));
+                    log_info("new client 0x%X at port %d", new_requestor->id, new_requestor->port);
                 }
 
-                ipc_msg_new_client_t *msg_new_client = (ipc_msg_new_client_t *)&buffer_in;
-                msg_new_client->port = next_requestor_port;
+                ipc_msg_request_port_t *msg_request_port = (ipc_msg_request_port_t *)&buffer_in;
+                msg_request_port->port = next_requestor_port;
 
-                memcpy(buffer_out, msg_new_client, buffer_in_recv);
+                memcpy(buffer_out, msg_request_port, buffer_in_recv);
+                buffer_out_send = buffer_in_recv;
             } else {
                 log_error("unexpected length for new client message: %d", buffer_in_recv);
             }
@@ -200,7 +210,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
         }
         case IPC_MSG_ID_REQUEST_OWNERSHIP:
         {
-            if (buffer_in_recv != sizeof(ipc_msg_request_ownership_t)) {
+            if (buffer_in_recv == sizeof(ipc_msg_request_ownership_t)) {
                 ipc_msg_request_ownership_t msg_request_ownership;
                 memcpy(&msg_request_ownership, buffer_in, sizeof(ipc_msg_request_ownership_t));
 
@@ -301,12 +311,9 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
         }
     }
 
-    if (buffer_out_send > 0) {
-        zmq_msg_t msg;
-        zmq_msg_init_buffer(&msg, buffer_out, buffer_out_send);
-        zmq_msg_send(&msg, responder, ZMQ_MORE);
-        zmq_msg_close(&msg);
-    }
+    zmq_send(responder, header, 5, ZMQ_SNDMORE);
+    zmq_send(responder, header, 0, ZMQ_SNDMORE);
+    zmq_send(responder, buffer_out, buffer_out_send, 0);
 }
 
 void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
@@ -316,9 +323,9 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
     }
 
     static uint8_t buffer_in[BUFFER_SIZE];
-    static int buffer_in_recv = 0;
+    int buffer_in_recv = 0;
 
-    buffer_in_recv = zmq_recv(consumer, buffer_in, BUFFER_SIZE, ZMQ_DONTWAIT);
+    buffer_in_recv = zmq_recv(consumer, buffer_in, BUFFER_SIZE, 0);
     if (buffer_in_recv <= 0) {
         return;
     }
@@ -329,7 +336,7 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
             if (buffer_in_recv == sizeof(ipc_msg_emcy_t)) {
                 ipc_msg_emcy_t msg_emcy;
                 memcpy(&msg_emcy, buffer_in, sizeof(ipc_msg_emcy_t));
-                log_debug("emcy send with code 0x%X info 0x%X", msg_emcy.code, msg_emcy.info);
+                log_info("emcy send with code 0x%X info 0x%X", msg_emcy.code, msg_emcy.info);
                 CO_errorReport(co->em, CO_EM_GENERIC_ERROR, msg_emcy.code, msg_emcy.info);
             } else {
                 log_error("consumer emcy send message size error");
@@ -342,7 +349,7 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 ipc_msg_tpdo_t msg_tpdo;
                 memcpy(&msg_tpdo, buffer_in, sizeof(ipc_msg_tpdo_t));
                 if (msg_tpdo.num < config->CNT_TPDO) {
-                    log_debug("tpdo send %d", msg_tpdo.num);
+                    //log_debug("tpdo send %d", msg_tpdo.num);
                     co->TPDO[msg_tpdo.num].sendRequest = true;
                 } else {
                     log_error("invalid tpdo number %d", msg_tpdo.num);
@@ -357,7 +364,7 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
             if (buffer_in_recv > (int)sizeof(ipc_msg_od_t)) {
                 ipc_msg_od_t msg_od;
                 memcpy(&msg_od, buffer_in, sizeof(ipc_msg_od_t));
-                log_debug("od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
+                //log_debug("od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
                 OD_entry_t *entry = OD_find(od, msg_od.index);
                 uint8_t *data = &buffer_in[sizeof(ipc_msg_od_t)];
                 size_t data_len = buffer_in_recv - sizeof(ipc_msg_od_t);
@@ -427,8 +434,13 @@ static ODR_t ipc_od_read_cb(OD_stream_t* stream, void* buf, OD_size_t count, OD_
         log_debug("od read callback for index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
         zmq_send(requestor, &msg_od, sizeof(ipc_msg_od_t), 0);
 
-        size_t buffer_in_recv = zmq_recv(requestor, od_ext->buffer_in, BUFFER_SIZE, 0);
-        if ((buffer_in_recv != od_ext->buffer_out_send) || (od_ext->buffer_in[0] != IPC_MSG_ID_OD_READ)) {
+        int buffer_in_recv = zmq_recv(requestor, od_ext->buffer_in, BUFFER_SIZE, 0);
+        if (buffer_in_recv == -1) {
+            log_error("od read callback for index 0x%X subindex 0x%X recv timeout",
+                      msg_od.index, msg_od.subindex);
+            return ODR_DEV_INCOMPAT;
+        } else if ((buffer_in_recv != (int)od_ext->buffer_out_send) || (od_ext->buffer_in[0] != IPC_MSG_ID_OD_READ)) {
+            log_error("od read cb error");
             return ODR_DEV_INCOMPAT;
         }
 

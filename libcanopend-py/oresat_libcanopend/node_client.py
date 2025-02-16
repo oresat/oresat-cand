@@ -32,12 +32,13 @@ class LocalData:
 
 
 class NodeClient:
-    RECV_TIMEOUT_MS = 100
+    RECV_TIMEOUT_MS = 1000
 
-    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
+    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = True):
         self._data = {entry: LocalData(entry.default) for entry in list(entries)}
         self._lookup_entry = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
         self._debug = debug
+        self._addr = addr
 
         self._context = zmq.Context()
 
@@ -47,16 +48,18 @@ class NodeClient:
         self._command_socket.setsockopt(zmq.LINGER, 0)
         self._command_socket_lock = Lock()
 
-        self._broadcast_socket = self._context.socket(zmq.PUB)
-        self._broadcast_socket.connect(f"tcp://{addr}:6001")
-
         self._consume_socket = self._context.socket(zmq.SUB)
-        self._consume_socket.connect(f"tcp://{addr}:6002")
+        self._consume_socket.connect(f"tcp://{addr}:6001")
         self._consume_thread = Thread(target=self._consume_thread_run, daemon=True)
         self._consume_thread.start()
 
+        self._broadcast_socket = self._context.socket(zmq.PUB)
+        self._broadcast_socket.connect(f"tcp://{addr}:6002")
+
         self._reply_port = 0
         self._reply_thread = Thread(target=self._reply_thread_run, daemon=True)
+        self._command_socket.setsockopt(zmq.RCVTIMEO, self.RECV_TIMEOUT_MS)
+        self._command_socket.setsockopt(zmq.LINGER, 0)
         self._reply_thread.start()
 
     def _consume_thread_run(self):
@@ -91,7 +94,23 @@ class NodeClient:
                 sleep(1)
 
         reply_socket = self._context.socket(zmq.REP)
-        reply_socket.connect(f"tcp://*:{self._reply_port}")
+        reply_socket.connect(f"tcp://{self._addr}:{self._reply_port}")
+        logging.info(f"connected to reply port {self._reply_port}")
+
+        for entry, data in self._data.items():
+            if data.owner and not data.ownership_ack:
+                try:
+                    req_msg = RequestOwnershipMessage(
+                        entry.index, entry.subindex, data.read_cb is None, data.write_cb is None
+                    )
+                    res_msg = self._send_and_recv(req_msg)
+                    if res_msg == req_msg:
+                        data.ownership_ack = True
+                        logging.info(f"got ownership of {entry.name}")
+                    else:
+                        logging.error(f"failed to get ownership of {entry.name}")
+                except Exception:
+                    pass
 
         while True:
             request = reply_socket.recv()
@@ -142,12 +161,12 @@ class NodeClient:
             req_msg_raw = req_msg.pack()
 
             if self._debug:
-                logging.debug("CLIENT SEND: " + req_msg_raw.hex().upper())
+                logging.debug(f"CLIENT SEND {len(req_msg_raw)}: {req_msg_raw.hex().upper()}")
             self._command_socket.send(req_msg_raw)
 
             res_msg_raw = self._command_socket.recv()
             if self._debug:
-                logging.debug("CLIENT RECV: " + res_msg_raw.hex().upper())
+                logging.debug(f"CLIENT RECV {len(res_msg_raw)}: {res_msg_raw.hex().upper()}")
 
             res_msg = req_msg.unpack(res_msg_raw)
         except Exception as e:
@@ -219,9 +238,12 @@ class NodeClient:
         self._data[entry].owner = True
         self._data[entry].read_cb = read_cb
         self._data[entry].write_cb = write_cb
-        try:
-            req_msg = RequestOwnershipMessage(entry.index, entry.subindex)
-            res_msg = self._send_and_recv(req_msg)
-            self._data[entry].ownership_ack = req_msg == res_msg
-        except Exception:
-            pass
+        if self._reply_port != 0:
+            try:
+                req_msg = RequestOwnershipMessage(
+                    entry.index, entry.subindex, read_cb is None, write_cb is None
+                )
+                res_msg = self._send_and_recv(req_msg)
+                self._data[entry].ownership_ack = req_msg == res_msg
+            except Exception:
+                pass
