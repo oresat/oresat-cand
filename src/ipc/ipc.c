@@ -19,11 +19,12 @@
 #define REQUESTOR_DEFAULT_PORT 7000
 
 typedef struct {
-    void **requestor;
+    void **read_requestors;
+    void **write_requestors;
     uint8_t buffer_in[BUFFER_SIZE];
-    size_t buffer_in_recv;
+    int buffer_in_recv;
     uint8_t buffer_out[BUFFER_SIZE];
-    size_t buffer_out_send;
+    int buffer_out_send;
 } ipc_od_ext_t;
 
 typedef struct {
@@ -73,15 +74,23 @@ void ipc_init(OD_t *od) {
             continue;
         }
 
-        od_ext->requestor = malloc(sizeof(void *) * od->list[i].subEntriesCount);
-        if (od_ext->requestor == NULL) {
+        od_ext->read_requestors = malloc(sizeof(void *) * od->list[i].subEntriesCount);
+        od_ext->write_requestors = malloc(sizeof(void *) * od->list[i].subEntriesCount);
+        if (!od_ext->read_requestors || !od_ext->write_requestors) {
             log_error("malloc client od extension requestors list");
+            if (od_ext->read_requestors) {
+                free(od_ext->read_requestors);
+            }
+            if (od_ext->write_requestors) {
+                free(od_ext->write_requestors);
+            }
             free(od_ext);
             free(ext);
             continue;
         }
 
-        memset(od_ext->requestor, 0, sizeof(void *) * od->list[i].subEntriesCount);
+        memset(od_ext->read_requestors, 0, sizeof(void *) * od->list[i].subEntriesCount);
+        memset(od_ext->write_requestors, 0, sizeof(void *) * od->list[i].subEntriesCount);
         od_ext->buffer_in_recv = 0;
         od_ext->buffer_out_send = 0;
 
@@ -189,7 +198,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                     requestors++;
                     new_requestor->id = requestor_id;
                     new_requestor->port = next_requestor_port;
-                    new_requestor->socket = zmq_socket(context, ZMQ_ROUTER);
+                    new_requestor->socket = zmq_socket(context, ZMQ_REQ);
                     sprintf(addr, "tcp://*:%d", new_requestor->port);
                     zmq_bind(new_requestor->socket, addr);
 
@@ -219,9 +228,17 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                     ipc_od_ext_t *od_ext = (ipc_od_ext_t *)entry->extension->object;
                     requestor_t *reqestor = find_requestor(requestor_id);
                     if (reqestor) {
-                        od_ext->requestor[msg_request_ownership.subindex] = reqestor->socket;
-                        log_info("add od extension cb for index 0x%X subindex 0x%X",
-                                    msg_request_ownership.index, msg_request_ownership.subindex);
+                        if (msg_request_ownership.read) {
+                            od_ext->read_requestors[msg_request_ownership.subindex] = reqestor->socket;
+                        }
+                        if (msg_request_ownership.write) {
+                            od_ext->write_requestors[msg_request_ownership.subindex] = reqestor->socket;
+                        }
+                        log_info("add od extension cb for index 0x%X subindex 0x%X - read %d write %d",
+                                 msg_request_ownership.index, msg_request_ownership.subindex,
+                                 od_ext->read_requestors[msg_request_ownership.subindex] != NULL,
+                                 od_ext->write_requestors[msg_request_ownership.subindex] != NULL
+                        );
                         memcpy(buffer_out, buffer_in, buffer_in_recv);
                         buffer_out_send = buffer_in_recv;
                     }
@@ -389,8 +406,11 @@ void ipc_free(OD_t *od) {
         }
         ipc_od_ext_t *od_ext = (ipc_od_ext_t *)od->list[i].extension->object;
         if (od_ext) {
-            if (od_ext->requestor) {
-                free(od_ext->requestor);
+            if (od_ext->read_requestors) {
+                free(od_ext->read_requestors);
+            }
+            if (od_ext->write_requestors) {
+                free(od_ext->write_requestors);
             }
             free(od_ext);
             od->list[i].extension->object = NULL;
@@ -419,7 +439,7 @@ static ODR_t ipc_od_read_cb(OD_stream_t* stream, void* buf, OD_size_t count, OD_
     }
 
     ipc_od_ext_t *od_ext = (ipc_od_ext_t *)stream->object;
-    if ((od_ext->requestor == NULL) || (od_ext->requestor[stream->subIndex] == NULL)) {
+    if ((od_ext->read_requestors == NULL) || (od_ext->read_requestors[stream->subIndex] == NULL)) {
         return OD_readOriginal(stream, buf, count, countRead);
     }
 
@@ -430,21 +450,26 @@ static ODR_t ipc_od_read_cb(OD_stream_t* stream, void* buf, OD_size_t count, OD_
             .subindex = stream->subIndex,
         };
 
-        void *requestor = od_ext->requestor[stream->subIndex];
+        void *requestor = od_ext->read_requestors[stream->subIndex];
         log_debug("od read callback for index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
         zmq_send(requestor, &msg_od, sizeof(ipc_msg_od_t), 0);
 
-        int buffer_in_recv = zmq_recv(requestor, od_ext->buffer_in, BUFFER_SIZE, 0);
-        if (buffer_in_recv == -1) {
+        od_ext->buffer_in_recv = zmq_recv(requestor, od_ext->buffer_in, BUFFER_SIZE, 0);
+        if (od_ext->buffer_in_recv == -1) {
             log_error("od read callback for index 0x%X subindex 0x%X recv timeout",
                       msg_od.index, msg_od.subindex);
             return ODR_DEV_INCOMPAT;
-        } else if ((buffer_in_recv != (int)od_ext->buffer_out_send) || (od_ext->buffer_in[0] != IPC_MSG_ID_OD_READ)) {
-            log_error("od read cb error");
+        } else if (od_ext->buffer_in[0] != IPC_MSG_ID_OD_READ) {
+            log_error("od read callback for index 0x%X subindex 0x%X msg id error",
+                      msg_od.index, msg_od.subindex);
+            return ODR_DEV_INCOMPAT;
+        } else if (od_ext->buffer_in_recv - sizeof(ipc_msg_od_t) <= 0) {
+            log_error("od read callback for index 0x%X subindex 0x%X size error",
+                      msg_od.index, msg_od.subindex);
             return ODR_DEV_INCOMPAT;
         }
 
-        stream->dataLength = buffer_in_recv - sizeof(ipc_msg_od_t);
+        stream->dataLength = od_ext->buffer_in_recv - sizeof(ipc_msg_od_t);
     }
 
     return od_ext_read_data(stream, buf, count, countRead, &od_ext->buffer_in[sizeof(ipc_msg_od_t)], stream->dataLength);
@@ -459,7 +484,7 @@ static ODR_t ipc_od_write_cb(OD_stream_t* stream, const void* buf, OD_size_t cou
     ODR_t r;
     ipc_od_ext_t *od_ext = (ipc_od_ext_t *)stream->object;
 
-    if ((od_ext->requestor == NULL) || (od_ext->requestor[stream->subIndex] == NULL)) {
+    if ((od_ext->write_requestors == NULL) || (od_ext->write_requestors[stream->subIndex] == NULL)) {
         r = OD_writeOriginal(stream, buf, count, countWritten);
         if (r == ODR_PARTIAL) {
             uint32_t offset = sizeof(ipc_msg_od_t) + stream->dataOffset - count;
@@ -479,7 +504,7 @@ static ODR_t ipc_od_write_cb(OD_stream_t* stream, const void* buf, OD_size_t cou
     }
 
     if (r == ODR_OK) {
-        void *requestor = od_ext->requestor[stream->subIndex];
+        void *requestor = od_ext->write_requestors[stream->subIndex];
         ipc_msg_od_t msg_od = {
             .id = IPC_MSG_ID_OD_WRITE,
             .index = stream->index,

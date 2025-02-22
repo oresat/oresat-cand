@@ -95,22 +95,11 @@ class NodeClient:
 
         reply_socket = self._context.socket(zmq.REP)
         reply_socket.connect(f"tcp://{self._addr}:{self._reply_port}")
-        logging.info(f"connected to reply port {self._reply_port}")
+        logging.info(f"connected to reply port {self._addr}:{self._reply_port}")
 
         for entry, data in self._data.items():
             if data.owner and not data.ownership_ack:
-                try:
-                    req_msg = RequestOwnershipMessage(
-                        entry.index, entry.subindex, data.read_cb is None, data.write_cb is None
-                    )
-                    res_msg = self._send_and_recv(req_msg)
-                    if res_msg == req_msg:
-                        data.ownership_ack = True
-                        logging.info(f"got ownership of {entry.name}")
-                    else:
-                        logging.error(f"failed to get ownership of {entry.name}")
-                except Exception:
-                    pass
+                self._request_ownership(entry, data.read_cb, data.write_cb)
 
         while True:
             request = reply_socket.recv()
@@ -234,16 +223,26 @@ class NodeClient:
             value = entry.enum[value]
         return value
 
+    def _request_ownership(self, entry: Entry, read_cb=None, write_cb=None):
+        if self._reply_port == 0:
+            return
+
+        try:
+            req_msg = RequestOwnershipMessage(
+                entry.index, entry.subindex, read_cb is not None, write_cb is not None
+            )
+            res_msg = self._send_and_recv(req_msg)
+            if res_msg == req_msg:
+                self._data[entry].ownership_ack = True
+                logging.info(f"got ownership of {entry.name}")
+            else:
+                logging.error(f"failed to get ownership of {entry.name}")
+        except Exception:
+            pass
+
     def request_ownership(self, entry: Entry, read_cb=None, write_cb=None):
+        if read_cb is None and write_cb is None:
+            raise ValueError("either or both of read_cb and write_cb args must be set")
         self._data[entry].owner = True
         self._data[entry].read_cb = read_cb
         self._data[entry].write_cb = write_cb
-        if self._reply_port != 0:
-            try:
-                req_msg = RequestOwnershipMessage(
-                    entry.index, entry.subindex, read_cb is None, write_cb is None
-                )
-                res_msg = self._send_and_recv(req_msg)
-                self._data[entry].ownership_ack = req_msg == res_msg
-            except Exception:
-                pass
