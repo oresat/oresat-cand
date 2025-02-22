@@ -212,6 +212,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
 
                 memcpy(buffer_out, msg_request_port, buffer_in_recv);
                 buffer_out_send = buffer_in_recv;
+                next_requestor_port++;
             } else {
                 log_error("unexpected length for new client message: %d", buffer_in_recv);
             }
@@ -227,7 +228,11 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 if (entry && entry->extension && entry->extension->object) {
                     ipc_od_ext_t *od_ext = (ipc_od_ext_t *)entry->extension->object;
                     requestor_t *reqestor = find_requestor(requestor_id);
-                    if (reqestor) {
+                    if (reqestor == NULL) {
+                        break;
+                    }
+                    if ((od_ext->read_requestors[msg_request_ownership.subindex] == NULL)
+                        && (od_ext->write_requestors[msg_request_ownership.subindex] == NULL)) {
                         if (msg_request_ownership.read) {
                             od_ext->read_requestors[msg_request_ownership.subindex] = reqestor->socket;
                         }
@@ -241,6 +246,9 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                         );
                         memcpy(buffer_out, buffer_in, buffer_in_recv);
                         buffer_out_send = buffer_in_recv;
+                    } else {
+                        log_error("od extension cb for index 0x%X subindex 0x%X already owned",
+                                  msg_request_ownership.index, msg_request_ownership.subindex);
                     }
                 }
             } else {
