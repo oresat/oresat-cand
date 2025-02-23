@@ -5,6 +5,7 @@ from threading import Lock, Thread
 from typing import Any, Callable, Optional, Union
 
 import zmq
+from zmq.utils.monitor import recv_monitor_message
 
 from .entry import Entry
 from .message import (
@@ -48,6 +49,24 @@ class NodeClient:
 
         self._broadcast_socket = self._context.socket(zmq.PUB)
         self._broadcast_socket.connect(f"tcp://{addr}:6002")
+
+        self._monitor_socket = self._consume_socket.get_monitor_socket()
+        self._monitor_thread = Thread(target=self._monitor_thread_run, daemon=True)
+        self._monitor_thread.start()
+
+    def _monitor_thread_run(self):
+        while self._monitor_socket.poll():
+            event = recv_monitor_message(self._monitor_socket)["event"]
+            if event == zmq.EVENT_CONNECTED:
+                logging.info("sockets connected")
+                for entry, data in self._data.items():
+                    if not data.write_cb:
+                        continue
+                    raw = entry.value_to_raw(data.value)
+                    self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
+            elif event == zmq.EVENT_DISCONNECTED:
+                logging.info("sockets disconnected")
+
 
     def _consume_thread_run(self):
         while True:
