@@ -3,22 +3,16 @@ from dataclasses import dataclass
 from enum import Enum
 from threading import Lock, Thread
 from typing import Any, Callable, Optional, Union
-from time import sleep
 
 import zmq
 
 from .entry import Entry
 from .message import (
-    AbortErrorMessage,
     EmcySendMessage,
-    OdReadMessage,
     OdWriteMessage,
-    RequestOwnershipMessage,
-    RequestPortMessage,
     SdoReadMessage,
     SdoWriteMessage,
     TpdoSendMessage,
-    UnknownIdErrorMessage,
 )
 
 
@@ -56,12 +50,6 @@ class NodeClient:
         self._broadcast_socket = self._context.socket(zmq.PUB)
         self._broadcast_socket.connect(f"tcp://{addr}:6002")
 
-        self._reply_port = 0
-        self._reply_thread = Thread(target=self._reply_thread_run, daemon=True)
-        self._command_socket.setsockopt(zmq.RCVTIMEO, self.RECV_TIMEOUT_MS)
-        self._command_socket.setsockopt(zmq.LINGER, 0)
-        self._reply_thread.start()
-
     def _consume_thread_run(self):
         while True:
             msg_recv = self._consume_socket.recv()
@@ -81,68 +69,6 @@ class NodeClient:
                     self._data[entry].write_cb(value)
             except Exception as e:
                 logging.error(f"consume error {entry.name} {e}")
-
-    def _reply_thread_run(self):
-        req_msg = RequestPortMessage(self._reply_port)
-
-        while True:
-            try:
-                res_msg = self._send_and_recv(req_msg)
-                self._reply_port = res_msg.port
-                break
-            except Exception:
-                sleep(1)
-
-        reply_socket = self._context.socket(zmq.REP)
-        reply_socket.connect(f"tcp://{self._addr}:{self._reply_port}")
-        logging.info(f"connected to reply port {self._addr}:{self._reply_port}")
-
-        for entry, data in self._data.items():
-            if data.owner and not data.ownership_ack:
-                self._request_ownership(entry, data.read_cb, data.write_cb)
-
-        while True:
-            request = reply_socket.recv()
-            if request is None or len(request) == 0:
-                continue
-
-            if self._debug:
-                logging.debug("SERVER REQ: " + request.hex().upper())
-
-            if request[0] == OdWriteMessage.id:
-                try:
-                    msg_req = OdWriteMessage.unpack(request)
-                    entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
-                    value = entry.raw_to_value(msg_req.raw)
-                    if self._data[entry].read_cb is not None:
-                        self._data[entry].write_cb(value)
-                    else:
-                        self._data[entry].value = value
-                    reply = request
-                except Exception as e:
-                    logging.error(f"reply to od write error: {e}")
-                    reply = AbortErrorMessage(0x0800_0020).pack()
-            elif request[0] == OdReadMessage.id:
-                try:
-                    msg_req = OdReadMessage.unpack(request)
-                    entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
-                    if self._data[entry].read_cb is not None:
-                        value = self._data[entry].read_cb()
-                    else:
-                        value = self._data[entry].value
-                    reply = request + entry.value_to_raw(value)
-                except Exception as e:
-                    logging.error(f"reply to od read error: {e}")
-                    reply = AbortErrorMessage(0x0800_0020).pack()
-            else:
-                reply = UnknownIdErrorMessage().pack()
-
-            if self._debug:
-                logging.debug("SERVER REPLY: " + reply.hex().upper())
-            try:
-                reply_socket.send(reply)
-            except Exception:
-                pass
 
     def _send_and_recv(self, req_msg):
         self._command_socket_lock.acquire()
@@ -212,8 +138,7 @@ class NodeClient:
     def sdo_write(self, node_id: int, entry: Entry, value: Any):
         raw = entry.value_to_raw(value)
         req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, raw)
-        res_msg = self._send_and_recv(req_msg)
-        value = entry.raw_to_value(res_msg.raw)
+        self._send_and_recv(req_msg)
 
     def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
         req_msg = SdoReadMessage(node_id, entry.index, entry.subindex, b"")
@@ -222,27 +147,3 @@ class NodeClient:
         if use_enum and entry.enum and isinstance(value, int):
             value = entry.enum[value]
         return value
-
-    def _request_ownership(self, entry: Entry, read_cb=None, write_cb=None):
-        if self._reply_port == 0:
-            return
-
-        try:
-            req_msg = RequestOwnershipMessage(
-                entry.index, entry.subindex, read_cb is not None, write_cb is not None
-            )
-            res_msg = self._send_and_recv(req_msg)
-            if res_msg == req_msg:
-                self._data[entry].ownership_ack = True
-                logging.info(f"got ownership of {entry.name}")
-            else:
-                logging.error(f"failed to get ownership of {entry.name}")
-        except Exception:
-            pass
-
-    def request_ownership(self, entry: Entry, read_cb=None, write_cb=None):
-        if read_cb is None and write_cb is None:
-            raise ValueError("either or both of read_cb and write_cb args must be set")
-        self._data[entry].owner = True
-        self._data[entry].read_cb = read_cb
-        self._data[entry].write_cb = write_cb

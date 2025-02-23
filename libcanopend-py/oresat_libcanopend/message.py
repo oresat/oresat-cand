@@ -95,23 +95,6 @@ class SdoWriteMessage(DynamicMessage):
 
 
 @dataclass
-class RequestPortMessage(Message):
-    _fmt: ClassVar[str] = "BI"
-    id: ClassVar[int] = 0x6
-    port: int
-
-
-@dataclass
-class RequestOwnershipMessage(Message):
-    _fmt: ClassVar[str] = "BHB??"
-    id: ClassVar[int] = 0x7
-    index: int
-    subindex: int
-    read: bool
-    write: bool
-
-
-@dataclass
 class ErrorMessage(Message):
     _fmt: ClassVar[str] = "B"
     id: ClassVar[int] = 0x80

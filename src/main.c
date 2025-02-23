@@ -238,7 +238,7 @@ main(int argc, char* argv[]) {
     log_info("fread cache path: %s", fread_cache->dir_path);
     log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
-    ipc_init(od);
+    ipc_init();
 
     os_command_extension_init(od);
     ecss_time_extension_init(od);
@@ -361,7 +361,7 @@ main(int argc, char* argv[]) {
 
     CO_endProgram = 1;
 
-    ipc_free(od);
+    ipc_free();
 
     if (pthread_join(rt_thread_id, NULL) != 0) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");

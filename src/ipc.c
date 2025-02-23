@@ -11,42 +11,18 @@
 #include "CO_SDOserver.h"
 #include "sdo_client.h"
 #include "logger.h"
-#include "od_ext.h"
 #include "ipc.h"
 
 #define ZMQ_HEADER_LEN 5
 #define BUFFER_SIZE 1024
 #define REQUESTOR_DEFAULT_PORT 7000
 
-typedef struct {
-    void **read_requestors;
-    void **write_requestors;
-    uint8_t buffer_in[BUFFER_SIZE];
-    int buffer_in_recv;
-    uint8_t buffer_out[BUFFER_SIZE];
-    int buffer_out_send;
-} ipc_od_ext_t;
-
-typedef struct {
-    uint32_t id;
-    uint32_t port;
-    void *socket;
-} requestor_t;
-
 static void *context = NULL;
 static void *responder = NULL;
 static void *broadcaster = NULL;
 static void *consumer = NULL;
 
-static requestor_t *requestor_list = NULL;
-static uint8_t requestors = 0;
-
-static ODR_t ipc_od_write_cb(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten);
-static ODR_t ipc_od_read_cb(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead);
-static requestor_t* find_requestor(uint32_t id);
-
-
-void ipc_init(OD_t *od) {
+void ipc_init(void) {
     context = zmq_ctx_new();
     responder = zmq_socket(context, ZMQ_ROUTER);
     zmq_bind(responder, "tcp://*:6000");
@@ -55,63 +31,6 @@ void ipc_init(OD_t *od) {
     consumer = zmq_socket(context, ZMQ_SUB);
     zmq_setsockopt(consumer, ZMQ_SUBSCRIBE, NULL, 0);
     zmq_bind(consumer, "tcp://*:6002");
-
-    for (size_t i=0; i < od->size; i++) {
-        if (od->list[i].index < 0x4000) {
-            continue;
-        }
-
-        OD_extension_t *ext = malloc(sizeof(OD_extension_t));
-        if (ext == NULL) {
-            log_error("malloc client od extension");
-            continue;
-        }
-
-        ipc_od_ext_t *od_ext = malloc(sizeof(ipc_od_ext_t));
-        if (od_ext == NULL) {
-            log_error("malloc client od extension data");
-            free(ext);
-            continue;
-        }
-
-        od_ext->read_requestors = malloc(sizeof(void *) * od->list[i].subEntriesCount);
-        od_ext->write_requestors = malloc(sizeof(void *) * od->list[i].subEntriesCount);
-        if (!od_ext->read_requestors || !od_ext->write_requestors) {
-            log_error("malloc client od extension requestors list");
-            if (od_ext->read_requestors) {
-                free(od_ext->read_requestors);
-            }
-            if (od_ext->write_requestors) {
-                free(od_ext->write_requestors);
-            }
-            free(od_ext);
-            free(ext);
-            continue;
-        }
-
-        memset(od_ext->read_requestors, 0, sizeof(void *) * od->list[i].subEntriesCount);
-        memset(od_ext->write_requestors, 0, sizeof(void *) * od->list[i].subEntriesCount);
-        od_ext->buffer_in_recv = 0;
-        od_ext->buffer_out_send = 0;
-
-        ext->object = od_ext;
-        ext->read = ipc_od_read_cb;
-        ext->write = ipc_od_write_cb;
-        memset(ext->flagsPDO, 0, sizeof(uint32_t));
-
-        od->list[i].extension = ext;
-    }
-}
-
-static requestor_t* find_requestor(uint32_t id) {
-    requestor_t *requestor = NULL;
-    for (int i=0; i<requestors; i++) {
-        if (requestor_list[i].id == id) {
-            requestor = &requestor_list[i];
-            break;
-        }
-    }
-    return requestor;
 }
 
 void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
@@ -120,7 +39,6 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
         return;
     }
 
-    static uint32_t next_requestor_port;
     static uint8_t buffer_in[BUFFER_SIZE];
     static uint8_t buffer_out[BUFFER_SIZE];
 
@@ -144,7 +62,6 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
         return;
     }
     memcpy(header, zmq_msg_data(&msg), nbytes);
-    uint32_t requestor_id = *(uint32_t *)&header[1]; // 0th bytes is 0
 
     nbytes = zmq_msg_recv(&msg, responder, 0);
     if (nbytes != 0) {
@@ -171,91 +88,6 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
     buffer_out_send = 1;
 
     switch (buffer_in[0]) {
-        case IPC_MSG_ID_REQUEST_PORT:
-        {
-            if (buffer_in_recv == sizeof(ipc_msg_request_port_t)) {
-                requestor_t *new_requestor = NULL;
-
-                if (requestors == 0) {
-                    next_requestor_port = REQUESTOR_DEFAULT_PORT;
-                    requestor_list = malloc(sizeof(requestor_t));
-                    if (requestor_list) {
-                        new_requestor = requestor_list;
-                    }
-                } else {
-                    void *tmp = realloc(requestor_list, sizeof(requestor_t) * (requestors + 1));
-                    if (tmp) {
-                        requestor_list = tmp;
-                        new_requestor = &requestor_list[requestors];
-                    } else {
-                        log_error("realloc reqestor failed");
-                        break;
-                    }
-                }
-
-                if (new_requestor) {
-                    char addr[32];
-                    requestors++;
-                    new_requestor->id = requestor_id;
-                    new_requestor->port = next_requestor_port;
-                    new_requestor->socket = zmq_socket(context, ZMQ_REQ);
-                    sprintf(addr, "tcp://*:%d", new_requestor->port);
-                    zmq_bind(new_requestor->socket, addr);
-
-                    int timeout_ms = 1;
-                    zmq_setsockopt(new_requestor->socket, ZMQ_RCVTIMEO, &timeout_ms, sizeof(timeout_ms));
-                    log_info("new client 0x%X at port %d", new_requestor->id, new_requestor->port);
-                }
-
-                ipc_msg_request_port_t *msg_request_port = (ipc_msg_request_port_t *)&buffer_in;
-                msg_request_port->port = next_requestor_port;
-
-                memcpy(buffer_out, msg_request_port, buffer_in_recv);
-                buffer_out_send = buffer_in_recv;
-                next_requestor_port++;
-            } else {
-                log_error("unexpected length for new client message: %d", buffer_in_recv);
-            }
-            break;
-        }
-        case IPC_MSG_ID_REQUEST_OWNERSHIP:
-        {
-            if (buffer_in_recv == sizeof(ipc_msg_request_ownership_t)) {
-                ipc_msg_request_ownership_t msg_request_ownership;
-                memcpy(&msg_request_ownership, buffer_in, sizeof(ipc_msg_request_ownership_t));
-
-                OD_entry_t *entry = OD_find(od, msg_request_ownership.index);
-                if (entry && entry->extension && entry->extension->object) {
-                    ipc_od_ext_t *od_ext = (ipc_od_ext_t *)entry->extension->object;
-                    requestor_t *reqestor = find_requestor(requestor_id);
-                    if (reqestor == NULL) {
-                        break;
-                    }
-                    if ((od_ext->read_requestors[msg_request_ownership.subindex] == NULL)
-                        && (od_ext->write_requestors[msg_request_ownership.subindex] == NULL)) {
-                        if (msg_request_ownership.read) {
-                            od_ext->read_requestors[msg_request_ownership.subindex] = reqestor->socket;
-                        }
-                        if (msg_request_ownership.write) {
-                            od_ext->write_requestors[msg_request_ownership.subindex] = reqestor->socket;
-                        }
-                        log_info("add od extension cb for index 0x%X subindex 0x%X - read %d write %d",
-                                 msg_request_ownership.index, msg_request_ownership.subindex,
-                                 od_ext->read_requestors[msg_request_ownership.subindex] != NULL,
-                                 od_ext->write_requestors[msg_request_ownership.subindex] != NULL
-                        );
-                        memcpy(buffer_out, buffer_in, buffer_in_recv);
-                        buffer_out_send = buffer_in_recv;
-                    } else {
-                        log_error("od extension cb for index 0x%X subindex 0x%X already owned",
-                                  msg_request_ownership.index, msg_request_ownership.subindex);
-                    }
-                }
-            } else {
-                log_error("unexpected length for request ownership message: %d", buffer_in_recv);
-            }
-            break;
-        }
         case IPC_MSG_ID_SDO_READ:
         {
             if (buffer_in_recv == sizeof(ipc_msg_sdo_t)) {
@@ -407,133 +239,9 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
     }
 }
 
-void ipc_free(OD_t *od) {
-    for (int i=0; i < od->size; i++) {
-        if (od->list[i].index < 0x4000) {
-            continue;
-        }
-        ipc_od_ext_t *od_ext = (ipc_od_ext_t *)od->list[i].extension->object;
-        if (od_ext) {
-            if (od_ext->read_requestors) {
-                free(od_ext->read_requestors);
-            }
-            if (od_ext->write_requestors) {
-                free(od_ext->write_requestors);
-            }
-            free(od_ext);
-            od->list[i].extension->object = NULL;
-        }
-    }
-
-    if (requestor_list) {
-        for (int i=0; i<requestors; i++) {
-            if (requestor_list[i].socket) {
-                zmq_close(requestor_list[i].socket);
-            }
-        }
-        free(requestor_list);
-    }
-
+void ipc_free(void) {
     zmq_close(responder);
     zmq_close(broadcaster);
     zmq_close(consumer);
     zmq_ctx_term(context);
-}
-
-static ODR_t ipc_od_read_cb(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead) {
-    if (!stream || !buf || !countRead || !stream->object) {
-        log_error("null arg error");
-        return ODR_DEV_INCOMPAT;
-    }
-
-    ipc_od_ext_t *od_ext = (ipc_od_ext_t *)stream->object;
-    if ((od_ext->read_requestors == NULL) || (od_ext->read_requestors[stream->subIndex] == NULL)) {
-        return OD_readOriginal(stream, buf, count, countRead);
-    }
-
-    if (stream->dataOffset == 0U) {
-        ipc_msg_od_t msg_od = {
-            .id = IPC_MSG_ID_OD_READ,
-            .index = stream->index,
-            .subindex = stream->subIndex,
-        };
-
-        void *requestor = od_ext->read_requestors[stream->subIndex];
-        log_debug("od read callback for index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
-        zmq_send(requestor, &msg_od, sizeof(ipc_msg_od_t), 0);
-
-        od_ext->buffer_in_recv = zmq_recv(requestor, od_ext->buffer_in, BUFFER_SIZE, 0);
-        if (od_ext->buffer_in_recv == -1) {
-            log_error("od read callback for index 0x%X subindex 0x%X recv timeout",
-                      msg_od.index, msg_od.subindex);
-            return ODR_DEV_INCOMPAT;
-        } else if (od_ext->buffer_in[0] != IPC_MSG_ID_OD_READ) {
-            log_error("od read callback for index 0x%X subindex 0x%X msg id error",
-                      msg_od.index, msg_od.subindex);
-            return ODR_DEV_INCOMPAT;
-        } else if (od_ext->buffer_in_recv - sizeof(ipc_msg_od_t) <= 0) {
-            log_error("od read callback for index 0x%X subindex 0x%X size error",
-                      msg_od.index, msg_od.subindex);
-            return ODR_DEV_INCOMPAT;
-        }
-
-        stream->dataLength = od_ext->buffer_in_recv - sizeof(ipc_msg_od_t);
-    }
-
-    return od_ext_read_data(stream, buf, count, countRead, &od_ext->buffer_in[sizeof(ipc_msg_od_t)], stream->dataLength);
-}
-
-static ODR_t ipc_od_write_cb(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
-    if (!stream || !buf || !stream->object) {
-        log_error("null arg error");
-        return ODR_DEV_INCOMPAT;
-    }
-
-    ODR_t r;
-    ipc_od_ext_t *od_ext = (ipc_od_ext_t *)stream->object;
-
-    if ((od_ext->write_requestors == NULL) || (od_ext->write_requestors[stream->subIndex] == NULL)) {
-        r = OD_writeOriginal(stream, buf, count, countWritten);
-        if (r == ODR_PARTIAL) {
-            uint32_t offset = sizeof(ipc_msg_od_t) + stream->dataOffset - count;
-            memcpy(&od_ext->buffer_in[offset], buf, *countWritten);
-        } else if (r == ODR_OK) {
-            if (stream->dataLength <= *countWritten) { // data fits in one segment
-                memcpy(&od_ext->buffer_in[sizeof(ipc_msg_od_t)], buf, *countWritten);
-            } else { // last segment
-                uint32_t offset = sizeof(ipc_msg_od_t) + stream->dataOffset - count;
-                memcpy(&od_ext->buffer_in[offset], buf, *countWritten);
-            }
-        }
-    } else {
-        uint8_t *data = &od_ext->buffer_in[sizeof(ipc_msg_od_t)];
-        size_t data_len = od_ext->buffer_in_recv - sizeof(ipc_msg_od_t);
-        r = od_ext_write_data(stream, buf, count, countWritten, data, BUFFER_SIZE, &data_len);
-    }
-
-    if (r == ODR_OK) {
-        void *requestor = od_ext->write_requestors[stream->subIndex];
-        ipc_msg_od_t msg_od = {
-            .id = IPC_MSG_ID_OD_WRITE,
-            .index = stream->index,
-            .subindex = stream->subIndex,
-        };
-        memcpy(od_ext->buffer_out, &msg_od, sizeof(ipc_msg_od_t));
-
-        int buffer_out_send = sizeof(ipc_msg_od_t) + stream->dataLength;
-        log_debug("od write callback for index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
-
-        if (requestor) {
-            zmq_send(requestor, &od_ext->buffer_out, buffer_out_send, 0);
-
-            od_ext->buffer_in_recv = zmq_recv(requestor, od_ext->buffer_in, BUFFER_SIZE, 0);
-            if (((int)od_ext->buffer_in_recv != buffer_out_send) || (od_ext->buffer_in[0] != IPC_MSG_ID_OD_WRITE)) {
-                return ODR_DEV_INCOMPAT;
-            }
-        }
-
-        zmq_send(broadcaster, &od_ext->buffer_in, od_ext->buffer_in_recv, 0);
-    }
-
-    return r;
 }
