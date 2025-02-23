@@ -21,7 +21,6 @@ class LocalData:
     value: Union[int, float, str, bytes, None]
     owner: bool = False
     ownership_ack: bool = False  # reset on connection lost
-    read_cb: Optional[Callable[[], [Any]]] = None
     write_cb: Optional[Callable[[Any], None]] = None
 
 
@@ -63,9 +62,8 @@ class NodeClient:
                 msg_req = OdWriteMessage.unpack(msg_recv)
                 entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
                 value = entry.raw_to_value(msg_req.raw)
-                if self._data[entry].write_cb is None:
-                    self._data[entry].value = value
-                else:
+                self._data[entry].value = value
+                if self._data[entry].write_cb is not None:
                     self._data[entry].write_cb(value)
             except Exception as e:
                 logging.error(f"consume error {entry.name} {e}")
@@ -147,3 +145,6 @@ class NodeClient:
         if use_enum and entry.enum and isinstance(value, int):
             value = entry.enum[value]
         return value
+
+    def add_write_callback(self, entry: Entry, write_cb: Callable[[Any], None]):
+        self._data[entry].write_cb = write_cb
