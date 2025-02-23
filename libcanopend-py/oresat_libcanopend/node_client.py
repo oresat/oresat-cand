@@ -27,7 +27,7 @@ class LocalData:
 class NodeClient:
     RECV_TIMEOUT_MS = 1000
 
-    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = True):
+    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
         self._data = {entry: LocalData(entry.default) for entry in list(entries)}
         self._lookup_entry = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
         self._debug = debug
