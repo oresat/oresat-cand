@@ -1,10 +1,10 @@
 subdir('common')
 subdir('canopenlinux')
 subdir('od_extensions')
-subdir('ipc')
 
 libcanopend_files = [
   'dcf_od.c',
+  'ipc.c',
   'main.c',
 ]
 
@@ -18,10 +18,10 @@ libcanopend = shared_library(
   include_directories: libcanopend_includes,
   dependencies: [
     dependency('threads'),
+    dependency('libzmq'),
     libcommon_dep,
     libcanopenlinux_dep,
     libodextensions_dep,
-    libipc_dep,
   ],
   install: false,
   c_args: [
