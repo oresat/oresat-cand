@@ -20,8 +20,6 @@ from .message import (
 @dataclass
 class LocalData:
     value: Union[int, float, str, bytes, None]
-    owner: bool = False
-    ownership_ack: bool = False  # reset on connection lost
     write_cb: Optional[Callable[[Any], None]] = None
 
 
@@ -66,7 +64,6 @@ class NodeClient:
                     self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
             elif event == zmq.EVENT_DISCONNECTED:
                 logging.info("sockets disconnected")
-
 
     def _consume_thread_run(self):
         while True:
@@ -166,4 +163,6 @@ class NodeClient:
         return value
 
     def add_write_callback(self, entry: Entry, write_cb: Callable[[Any], None]):
+        if self._data[entry].write_cb is not None:
+            raise ValueError(f"{entry.name} write callback is already set")
         self._data[entry].write_cb = write_cb
