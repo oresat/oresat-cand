@@ -53,7 +53,7 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
 static bool parse_int_key(const char *string, int *value);
 static uint8_t get_acces_attr(char *access_type);
 
-int dcf_od_load(const char *file_path, OD_t **od) {
+int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
     if (!file_path || !od) {
         return -1;
     }
@@ -66,7 +66,7 @@ int dcf_od_load(const char *file_path, OD_t **od) {
     bool entry_1018_flag = false;
 
     unsigned int e = 0;
-    int node_id = 0;
+    int node_id_tmp = 0;
 
     struct tmp_data_t data;
     reset_tmp_data(&data);
@@ -184,7 +184,7 @@ int dcf_od_load(const char *file_path, OD_t **od) {
                 }
             }
         } else if (!strncmp(line, "NodeID=", strlen("NodeID="))) {
-            parse_int_key(&line[strlen("NodeID=")], &node_id);
+            parse_int_key(&line[strlen("NodeID=")], &node_id_tmp);
         } else if (!strncmp(line, "ObjectType=", strlen("ObjectType="))) {
             parse_int_key(&line[strlen("ObjectType=")], &data.object_type);
         } else if (!strncmp(line, "DataType=", strlen("DataType="))) {
@@ -224,6 +224,7 @@ int dcf_od_load(const char *file_path, OD_t **od) {
     out->list = od_list;
     out->size = size;
     *od = out;
+    *node_id = node_id_tmp;
     return 0;
 
 error:

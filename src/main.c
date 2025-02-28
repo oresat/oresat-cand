@@ -97,7 +97,6 @@ printUsage(char* progName) {
     printf("Usage: %s <CAN device name> [options]\n", progName);
     printf("\n");
     printf("Options:\n");
-    printf("  -i <Node ID>        CANopen Node-id (1..127)\n");
     printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n");
     printf("                      set to -1, then normal scheduler is used for RT thread.\n");
     printf("  -v                  Verbose logging\n");
@@ -119,7 +118,6 @@ main(int argc, char* argv[]) {
     int opt;
     bool_t firstRun = true;
     char* CANdevice = NULL;
-    int16_t nodeIdFromArgs = -1;
     char dcf_path[PATH_MAX] = {0};
     bool used_extenal_od = false;
 
@@ -132,11 +130,6 @@ main(int argc, char* argv[]) {
             case 'h': {
                 printUsage(argv[0]);
                 exit(EXIT_SUCCESS);
-            }
-            case 'i': {
-                long int nodeIdLong = strtol(optarg, NULL, 0);
-                nodeIdFromArgs = (nodeIdLong < 0 || nodeIdLong > 0xFF) ? 0 : (uint8_t)strtol(optarg, NULL, 0);
-                break;
             }
             case 'p':
                 rtPriority = strtol(optarg, NULL, 0);
@@ -157,13 +150,6 @@ main(int argc, char* argv[]) {
         CANptr.can_ifindex = if_nametoindex(CANdevice);
     }
 
-    if ((nodeIdFromArgs == 0 || nodeIdFromArgs > 127)) {
-        log_printf(LOG_CRIT, DBG_WRONG_NODE_ID, nodeIdFromArgs);
-        printUsage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    CO_activeNodeId = nodeIdFromArgs;
-
     if (rtPriority != -1
         && (rtPriority < sched_get_priority_min(SCHED_FIFO) || rtPriority > sched_get_priority_max(SCHED_FIFO))) {
         log_printf(LOG_CRIT, DBG_WRONG_PRIORITY, rtPriority);
@@ -179,7 +165,7 @@ main(int argc, char* argv[]) {
     log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
 
     if (dcf_path[0] != '\0') {
-        if (dcf_od_load(dcf_path, &od) < 0) {
+        if (dcf_od_load(dcf_path, &od, &CO_activeNodeId) < 0) {
             log_critical("failed to load in external od from %s", dcf_path);
         } else {
             log_info("using external od from %s", dcf_path);
