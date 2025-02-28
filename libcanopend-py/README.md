@@ -15,9 +15,9 @@ from time import sleep
 
 from oresat_canopend import Entry, NodeClient
 
-INPUT_ENTRY_1 = Entry(0x4123, 0x2, Datatype.BOOLEAN)
-INPUT_ENTRY_2 = Entry(0x4123, 0x5, Datatype.UNSIGNED16)
-OUTPUT_ENTRY = Entry(0x4123, 0x7, Datatype.UNSIGNED32)
+INPUT_ENTRY_1 = Entry(0x4123, 0x2, Datatype.BOOLEAN, False)
+INPUT_ENTRY_2 = Entry(0x4123, 0x5, Datatype.UNSIGNED16, 0)
+OUTPUT_ENTRY = Entry(0x4123, 0x7, Datatype.UNSIGNED32, 0)
 
 client = NodeClient()
 
