@@ -94,7 +94,7 @@ HeartbeatNmtChangedCallback(uint8_t nodeId, uint8_t idx, CO_NMT_internalState_t 
 
 static void
 printUsage(char* progName) {
-    printf("Usage: %s <CAN device name> [options]\n", progName);
+    printf("Usage: %s <CAN interface> [options]\n", progName);
     printf("\n");
     printf("Options:\n");
     printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n");
@@ -121,16 +121,15 @@ main(int argc, char* argv[]) {
     char dcf_path[PATH_MAX] = {0};
     bool used_extenal_od = false;
 
-    if (argc < 2 || strcmp(argv[1], "--help") == 0) {
+    if (argc < 2) {
         printUsage(argv[0]);
-        exit(EXIT_SUCCESS);
+        exit(EXIT_FAILURE);
     }
     while ((opt = getopt(argc, argv, "hi:p:vd:")) != -1) {
         switch (opt) {
-            case 'h': {
+            case 'h':
                 printUsage(argv[0]);
                 exit(EXIT_SUCCESS);
-            }
             case 'p':
                 rtPriority = strtol(optarg, NULL, 0);
                 break;
@@ -141,7 +140,8 @@ main(int argc, char* argv[]) {
                 strncpy(dcf_path, optarg, strlen(optarg));
                 break;
             default:
-                printUsage(argv[0]); exit(EXIT_FAILURE);
+                printUsage(argv[0]);
+                exit(EXIT_FAILURE);
         }
     }
 
