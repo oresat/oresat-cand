@@ -62,7 +62,7 @@ class Entry(EntryDef, Enum):
     """Virtual base class for entries."""
 
     def __hash__(self) -> int:
-        return self.index << 8 + self.index
+        return self.index << 8 + self.subindex
 
     def bitfield_to_value(self, values: dict[EntryBitField, int]) -> int:
         if not self.bitfield:

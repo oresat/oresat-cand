@@ -44,9 +44,10 @@ typedef struct __attribute((packed)) {
     uint32_t abort_code;
 } ipc_msg_error_abort_t;
 
-void ipc_init(void);
+void ipc_init(OD_t *od);
 void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config);
 void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config);
+void ipc_monitor_process(void);
 void ipc_free(void);
 
 #endif
