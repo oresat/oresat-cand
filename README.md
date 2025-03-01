@@ -7,7 +7,7 @@ A CANopen system service for OreSat Linux cards.
 Install build dependencies
 
 ```bash
-pip install meson ninja
+pip install -r requirements.txt
 ```
 
 Initialize CANopenLinux submodule
