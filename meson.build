@@ -1,7 +1,7 @@
 project(
   'oresat-canopend',
   'c',
-  version : '0', # run_command('git', 'describe').stdout.strip(),
+  version : '0', # run_command('git', 'describe', check: true).stdout.strip(),
   license: 'GPL-3.0',
   default_options : [
     'warning_level=3',
@@ -15,6 +15,8 @@ build_args = [
   '-DPROJECT_NAME="' + meson.project_name() + '"',
   '-DPROJECT_VERSION="' + meson.project_version() + '"',
 ]
+
+run_command('oresat-configs', 'fw-files', 'sw-base', '-d', 'src/canopenlinux', check: false)
 
 subdir('src')
 
