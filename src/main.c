@@ -56,17 +56,14 @@ sigHandler(int sig) {
     CO_endProgram = 1;
 }
 
-#if (CO_CONFIG_EM) & CO_CONFIG_EM_CONSUMER
 static void
-EmergencyRxCallback(const uint16_t ident, const uint16_t errorCode, const uint8_t errorRegister, const uint8_t errorBit,
-                    const uint32_t infoCode) {
+EmergencyRxCallback(const uint16_t ident, const uint16_t errorCode, const uint8_t errorRegister, const uint8_t errorBit, const uint32_t infoCode) {
     int16_t nodeIdRx = ident ? (ident & 0x7F) : CO_activeNodeId;
 
     log_printf(LOG_NOTICE, DBG_EMERGENCY_RX, nodeIdRx, errorCode, errorRegister, errorBit, infoCode);
+    ipc_broadcast_emcy(nodeIdRx, errorCode, infoCode);
 }
-#endif
 
-#if ((CO_CONFIG_NMT)&CO_CONFIG_NMT_CALLBACK_CHANGE) || ((CO_CONFIG_HB_CONS)&CO_CONFIG_HB_CONS_CALLBACK_CHANGE)
 static char*
 NmtState2Str(CO_NMT_internalState_t state) {
     switch (state) {
@@ -77,22 +74,18 @@ NmtState2Str(CO_NMT_internalState_t state) {
         default: return "unknown";
     }
 }
-#endif
 
-#if (CO_CONFIG_NMT) & CO_CONFIG_NMT_CALLBACK_CHANGE
 static void
 NmtChangedCallback(CO_NMT_internalState_t state) {
     log_printf(LOG_NOTICE, DBG_NMT_CHANGE, NmtState2Str(state), state);
 }
-#endif
 
-#if (CO_CONFIG_HB_CONS) & CO_CONFIG_HB_CONS_CALLBACK_CHANGE
 static void
 HeartbeatNmtChangedCallback(uint8_t nodeId, uint8_t idx, CO_NMT_internalState_t state, void* object) {
     (void)object;
     log_printf(LOG_NOTICE, DBG_HB_CONS_NMT_CHANGE, nodeId, idx, NmtState2Str(state), state);
+    ipc_broadcast_hb(nodeId, state);
 }
-#endif
 
 static void
 printUsage(char* progName) {
@@ -273,15 +266,13 @@ main(int argc, char* argv[]) {
             if (errInfo != 0) {
                 CO_errorReport(CO->em, CO_EM_INCONSISTENT_OBJECT_DICT, CO_EMC_DATA_SET, errInfo);
             }
-#if (CO_CONFIG_EM) & CO_CONFIG_EM_CONSUMER
-            CO_EM_initCallbackRx(CO->em, EmergencyRxCallback);
-#endif
-#if (CO_CONFIG_NMT) & CO_CONFIG_NMT_CALLBACK_CHANGE
+            if (config.CNT_EM) {
+                CO_EM_initCallbackRx(CO->em, EmergencyRxCallback);
+            }
             CO_NMT_initCallbackChanged(CO->NMT, NmtChangedCallback);
-#endif
-#if (CO_CONFIG_HB_CONS) & CO_CONFIG_HB_CONS_CALLBACK_CHANGE
-            CO_HBconsumer_initCallbackNmtChanged(CO->HBcons, 0, NULL, HeartbeatNmtChangedCallback);
-#endif
+            if (config.CNT_HB_CONS) {
+                CO_HBconsumer_initCallbackNmtChanged(CO->HBcons, 0, NULL, HeartbeatNmtChangedCallback);
+            }
 
             log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "communication reset");
         } else {

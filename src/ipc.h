@@ -12,6 +12,8 @@
 #define IPC_MSG_ID_SDO_READ             0x04
 #define IPC_MSG_ID_SDO_WRITE            0x05
 #define IPC_MSG_ID_ADD_FILE             0x06
+#define IPC_MSG_ID_HB_RECV              0x07
+#define IPC_MSG_ID_EMCY_RECV            0x08
 
 #define IPC_MSG_ID_ERROR                0x80
 #define IPC_MSG_ID_ERROR_UNKNOWN_ID     0x81
@@ -43,6 +45,19 @@ typedef struct __attribute((packed)) {
 
 typedef struct __attribute((packed)) {
     uint8_t id;
+    uint8_t node_id;
+    uint8_t state;
+} ipc_msg_hb_t;
+
+typedef struct __attribute((packed)) {
+    uint8_t id;
+    uint8_t node_id;
+    uint16_t code;
+    uint32_t info;
+} ipc_msg_emcy_recv_t;
+
+typedef struct __attribute((packed)) {
+    uint8_t id;
     int32_t error;
 } ipc_msg_error_t;
 
@@ -56,5 +71,8 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
 void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config);
 void ipc_monitor_process(void);
 void ipc_free(void);
+
+void ipc_broadcast_hb(uint8_t node_id, uint8_t state);
+void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info);
 
 #endif

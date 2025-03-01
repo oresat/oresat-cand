@@ -351,3 +351,22 @@ static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t 
     }
     return r;
 }
+
+void ipc_broadcast_hb(uint8_t node_id, uint8_t state) {
+    ipc_msg_hb_t msg_hb = {
+        .id = IPC_MSG_ID_HB_RECV,
+        .node_id = node_id,
+        .state = state,
+    };
+    zmq_send(broadcaster, &msg_hb, sizeof(ipc_msg_hb_t), 0);
+}
+
+void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
+    ipc_msg_emcy_recv_t msg_emcy_recv = {
+        .id = IPC_MSG_ID_EMCY_RECV,
+        .node_id = node_id,
+        .code = code,
+        .info = info,
+    };
+    zmq_send(broadcaster, &msg_emcy_recv, sizeof(ipc_msg_emcy_recv_t), 0);
+}

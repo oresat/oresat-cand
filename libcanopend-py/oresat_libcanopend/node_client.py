@@ -16,7 +16,16 @@ from .message import (
     SdoWriteMessage,
     TpdoSendMessage,
     AddFileMessage,
+    HbRecvMessage,
+    EmcyRecvMessage,
 )
+
+
+class NodeState(Enum):
+    INITIALIZING = 0x0
+    STOPPED = 0x4
+    OPERATIONAL = 0x5
+    PRE_OPERATIONAL = 0x7F
 
 
 @dataclass
@@ -33,6 +42,9 @@ class NodeClient:
         self._lookup_entry = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
         self._debug = debug
         self._addr = addr
+
+        self._emcy_cb = None
+        self._hb_cb = None
 
         self._context = zmq.Context()
 
@@ -72,21 +84,37 @@ class NodeClient:
             msg_recv = self._consume_socket.recv()
             if self._debug:
                 logging.debug("CONSUME: " + msg_recv.hex().upper())
-            if len(msg_recv) < OdWriteMessage.size or msg_recv[0] != OdWriteMessage.id:
-                logging.debug(f"invalid od write message {msg_recv.hex().upper()}")
-                continue
 
-            try:
-                msg_req = OdWriteMessage.unpack(msg_recv)
-                entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
-                value = entry.raw_to_value(msg_req.raw)
-                if value == self._data[entry].value:
+            if msg_recv[0] != OdWriteMessage.id:
+                if len(msg_recv) < OdWriteMessage.size:
+                    logging.debug(f"invalid od write message {msg_recv.hex().upper()}")
                     continue
-                self._data[entry].value = value
-                if self._data[entry].write_cb is not None:
-                    self._data[entry].write_cb(value)
-            except Exception as e:
-                logging.error(f"consume error {entry.name} {e}")
+
+                try:
+                    msg_req = OdWriteMessage.unpack(msg_recv)
+                    entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
+                    value = entry.raw_to_value(msg_req.raw)
+                    if value == self._data[entry].value:
+                        continue
+                    self._data[entry].value = value
+                    if self._data[entry].write_cb is not None:
+                        self._data[entry].write_cb(value)
+                except Exception as e:
+                    logging.error(f"write callback error {entry.name} {e}")
+            elif msg_recv[0] != HbRecvMessage.id:
+                if self._hb_cb:
+                    try:
+                        msg_req = HbRecvMessage(msg_recv)
+                        self._hb_cb(msg_req.node_id, NodeState(msg_req.state))
+                    except Exception as e:
+                        logging.error(f"heartbeat callback error: {e}")
+            elif msg_recv[0] != EmcyRecvMessage.id:
+                if self._emcy_cb:
+                    try:
+                        msg_req = EmcyRecvMessage(msg_recv)
+                        self._emcy_cb(msg_req.node_id, msg_req.code, msg_req.info)
+                    except Exception as e:
+                        logging.error(f"emcy callback error: {e}")
 
     def _send_and_recv(self, req_msg):
         self._command_socket_lock.acquire()
@@ -172,9 +200,15 @@ class NodeClient:
         self._data[entry].write_cb = write_cb
 
     def add_file(self, file_path: str):
-        if file_path[0] != '/':
+        if file_path[0] != "/":
             raise ValueError("file_path must be an absolute path")
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"{file_path} not found")
         req_msg = AddFileMessage(file_path)
         self._send_and_recv(req_msg)
+
+    def add_heartbeat_callback(self, hb_cb: Callable[[int, NodeState], None]):
+        self._hb_cb = hb_cb
+
+    def add_emcy_callback(self, emcy_cb: Callable[[int, int, int], None]):
+        self._emcy_cb = emcy_cb

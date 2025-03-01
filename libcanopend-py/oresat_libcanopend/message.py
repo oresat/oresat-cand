@@ -111,6 +111,23 @@ class AddFileMessage(Message):
 
 
 @dataclass
+class HbRecvMessage(Message):
+    _fmt: ClassVar[str] = "BBB"
+    id: ClassVar[int] = 0x7
+    node_id: int
+    state: int
+
+
+@dataclass
+class EmcyRecvMessage(Message):
+    _fmt: ClassVar[str] = "BBHI"
+    id: ClassVar[int] = 0x8
+    node_id: int
+    code: int
+    info: int
+
+
+@dataclass
 class ErrorMessage(Message):
     _fmt: ClassVar[str] = "Bi"
     id: ClassVar[int] = 0x80
