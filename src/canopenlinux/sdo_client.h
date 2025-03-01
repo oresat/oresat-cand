@@ -8,7 +8,7 @@ char* get_sdo_abort_string(uint32_t code);
 
 CO_SDO_abortCode_t sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void *buf, size_t buf_size, size_t* read_size);
 
-CO_SDO_abortCode_t sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void **buf, size_t *buf_size); // buf must be freed if not NULL
+CO_SDO_abortCode_t sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void **buf, size_t *buf_size, bool block_transfer);
 
 static inline CO_SDO_abortCode_t sdo_read_bool(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, bool* value) {
     return sdo_read(client, node_id, index, subindex, value, 1, NULL);
@@ -55,13 +55,13 @@ static inline CO_SDO_abortCode_t sdo_read_float64(CO_SDOclient_t* client, uint8_
 }
 
 // buf must be freed if not NULL
-static inline CO_SDO_abortCode_t sdo_read_bytes(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, uint8_t** buf, size_t *buf_size) {
-    return sdo_read_dynamic(client, node_id, index, subindex, (void **)buf, buf_size);
+static inline CO_SDO_abortCode_t sdo_read_bytes(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, uint8_t** buf, size_t *buf_size, bool block_transfer) {
+    return sdo_read_dynamic(client, node_id, index, subindex, (void **)buf, buf_size, block_transfer);
 }
 
 // buf must be freed if not NULL
-static inline CO_SDO_abortCode_t sdo_read_str(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, char** buf) {
-    return sdo_read_dynamic(client, node_id, index, subindex, (void **)buf, NULL);
+static inline CO_SDO_abortCode_t sdo_read_str(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, char** buf, bool block_transfer) {
+    return sdo_read_dynamic(client, node_id, index, subindex, (void **)buf, NULL, block_transfer);
 }
 
 CO_SDO_abortCode_t sdo_write(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void *data, size_t data_size);

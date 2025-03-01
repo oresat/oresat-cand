@@ -51,7 +51,7 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
 static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data);
 static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int sub_offset);
 static bool parse_int_key(const char *string, int *value);
-static uint8_t get_acces_attr(char *access_type);
+static uint8_t get_access_attr(char *access_type);
 
 int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
     if (!file_path || !od) {
@@ -399,7 +399,7 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
                         arr->dataOrig = malloc(size);
                         memset(arr->dataOrig, 0,  size);
                     }
-                    arr->attribute = get_acces_attr(data->access_type) | ODA_MB;
+                    arr->attribute = get_access_attr(data->access_type) | ODA_MB;
                     arr->dataElementSizeof = 0;
                     break;
                 default:
@@ -546,9 +546,14 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
         *attribute |= ODA_MB;
         break;
     case VISIBLE_STRING:
-        length = strlen(data->default_value) + 1;
-        *value = malloc(length);
-        strncpy(*value, data->default_value, length);
+        length = strlen(data->default_value);
+        if (length == 0) {
+            *value = NULL;
+        } else {
+            length++; // add space for '\0'
+            *value = malloc(length);
+            strncpy(*value, data->default_value, length);
+        }
         *attribute |= ODA_STR;
         break;
     case OCTET_STRING:
@@ -590,7 +595,7 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
         *value_length = length;
     }
 
-    *attribute |= get_acces_attr(data->access_type);
+    *attribute |= get_access_attr(data->access_type);
 
     if (data->pdo_mapping) {
         *attribute |= ODA_TRPDO;
@@ -599,7 +604,7 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
     return 0;
 }
 
-static uint8_t get_acces_attr(char *access_type) {
+static uint8_t get_access_attr(char *access_type) {
     uint8_t attr;
     if (!strncpy(access_type, "ro", strlen(access_type)) ||
         !strncpy(access_type, "const", strlen(access_type))) {

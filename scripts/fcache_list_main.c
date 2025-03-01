@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
     }
 
     char *buf = NULL;
-    CO_SDO_abortCode_t abort_code = sdo_read_str(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, &buf);
+    CO_SDO_abortCode_t abort_code = sdo_read_str(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, &buf, false);
     if (abort_code != 0) {
         goto abort;
     } else if (!buf) {

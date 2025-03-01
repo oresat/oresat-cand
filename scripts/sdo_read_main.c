@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
 
     void *data = NULL;
     size_t data_size = 0;
-    CO_SDO_abortCode_t abort_code = sdo_read_dynamic(CO->SDOclient, node_id, index, subindex, &data, &data_size);
+    CO_SDO_abortCode_t abort_code = sdo_read_dynamic(CO->SDOclient, node_id, index, subindex, &data, &data_size, false);
     sdo_client_node_stop();
 
     if (abort_code == 0) {

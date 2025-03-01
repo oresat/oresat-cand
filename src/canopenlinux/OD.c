@@ -38,16 +38,28 @@ OD_ATTR_RAM OD_RAM_t OD_RAM = {
     },
     .x2010_scet = 0x0,
     .x2011_utc = 0x0,
+    .x3003_system = {
+        .highest_index_supported = 0x9,
+        .reset = 0x0,
+        .storage_percent = 0x0,
+        .ram_percent = 0x0,
+        .unix_time = 0x0,
+        .uptime = 0x0,
+        .power_cycles = 0x0,
+        .boot_select = 0x0,
+    },
     .x3004_fread_cache = {
         .highest_index_supported = 0x5,
         .length = 0x0,
         .files_json = {'[', ']', '\0'},
+        .file_name =  {'\0'},
         .remove = 0,
     },
     .x3005_fwrite_cache = {
         .highest_index_supported = 0x5,
         .length = 0x0,
         .files_json = {'[', ']', '\0'},
+        .file_name =  {'\0'},
         .remove = 0,
     },
 };
@@ -64,6 +76,7 @@ typedef struct {
     OD_obj_record_t o_1280_sdo_client_parameter[4];
     OD_obj_var_t o_2010_scet;
     OD_obj_var_t o_2011_utc;
+    OD_obj_record_t o_3003_system[8];
     OD_obj_record_t o_3004_fread_cache[6];
     OD_obj_record_t o_3005_fwrite_cache[6];
 } ODObjs_t;
@@ -217,6 +230,56 @@ static CO_PROGMEM ODObjs_t ODObjs = {
         .attribute = ODA_SDO_RW | ODA_TRPDO | ODA_MB,
         .dataLength = 8
     },
+    .o_3003_system = {
+        {
+            .dataOrig = &OD_RAM.x3003_system.highest_index_supported,
+            .subIndex = 0,
+            .attribute = ODA_SDO_R,
+            .dataLength = 1
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.reset,
+            .subIndex = 1,
+            .attribute = ODA_SDO_W | ODA_RPDO,
+            .dataLength = 1
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.storage_percent,
+            .subIndex = 2,
+            .attribute = ODA_SDO_R | ODA_TPDO,
+            .dataLength = 1
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.ram_percent,
+            .subIndex = 3,
+            .attribute = ODA_SDO_R | ODA_TPDO,
+            .dataLength = 1
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.unix_time,
+            .subIndex = 4,
+            .attribute = ODA_SDO_R | ODA_TPDO | ODA_MB,
+            .dataLength = 4
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.uptime,
+            .subIndex = 5,
+            .attribute = ODA_SDO_R | ODA_TPDO | ODA_MB,
+            .dataLength = 4
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.power_cycles,
+            .subIndex = 6,
+            .attribute = ODA_SDO_R | ODA_TPDO | ODA_MB,
+            .dataLength = 2
+        },
+        {
+            .dataOrig = &OD_RAM.x3003_system.boot_select,
+            .subIndex = 9,
+            .attribute = ODA_SDO_R | ODA_TPDO,
+            .dataLength = 1
+        },
+    },
     .o_3004_fread_cache = {
         {
             .dataOrig = &OD_RAM.x3004_fread_cache.highest_index_supported,
@@ -307,6 +370,7 @@ static OD_ATTR_OD OD_entry_t ODList[] = {
     {0x1280, 0x04, ODT_REC, &ODObjs.o_1280_sdo_client_parameter, NULL},
     {0x2010, 0x01, ODT_VAR, &ODObjs.o_2010_scet, NULL},
     {0x2011, 0x01, ODT_VAR, &ODObjs.o_2011_utc, NULL},
+    {0x3003, 0x08, ODT_REC, &ODObjs.o_3003_system, NULL},
     {0x3004, 0x06, ODT_REC, &ODObjs.o_3004_fread_cache, NULL},
     {0x3005, 0x06, ODT_REC, &ODObjs.o_3005_fwrite_cache, NULL},
     {0x0000, 0x00, 0, NULL, NULL}

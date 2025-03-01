@@ -27,7 +27,7 @@ static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t 
 
 static OD_extension_t ext = {
     .object = NULL,
-    .read = NULL,
+    .read = OD_readOriginal,
     .write = ipc_broadcast_data,
 };
 
@@ -123,7 +123,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 size_t data_len = 0;
                 CO_SDO_abortCode_t ac = -1;
                 if (co->SDOclient) {
-                    ac = sdo_read_dynamic(co->SDOclient, msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex, &data, &data_len);
+                    ac = sdo_read_dynamic(co->SDOclient, msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex, &data, &data_len, false);
                 }
                 if (ac == 0) {
                     if (data == NULL) {
@@ -250,7 +250,7 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 OD_entry_t *entry = OD_find(od, msg_od.index);
                 uint8_t *data = &buffer_in[sizeof(ipc_msg_od_t)];
                 size_t data_len = buffer_in_recv - sizeof(ipc_msg_od_t);
-                OD_set_value(entry, msg_od.subindex, data, data_len, false);
+                OD_set_value(entry, msg_od.subindex, data, data_len, clients <= 1);
             } else {
                 log_error("consume od write message size error");
             }
@@ -305,7 +305,7 @@ void ipc_free(void) {
 
 static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
     ODR_t r = OD_writeOriginal(stream, buf, count, countWritten);
-    if ((r == ODR_OK) && (clients > 1) && (stream->dataOrig != NULL)) {
+    if ((r == ODR_OK) && (stream->dataOrig != NULL)) {
         ipc_msg_od_t msg_od = {
             .id = IPC_MSG_ID_OD_WRITE,
             .index = stream->index,

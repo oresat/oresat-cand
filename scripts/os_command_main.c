@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
 
     if ((status == OS_CMD_NO_ERROR_REPLY) || (status == OS_CMD_ERROR_REPLY)) {
         char *reply = NULL;
-        abort_code = sdo_read_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_REPLY, &reply);
+        abort_code = sdo_read_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_REPLY, &reply, true);
         if (abort_code != 0) {
             goto abort;
         }

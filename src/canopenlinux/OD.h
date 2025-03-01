@@ -1,6 +1,7 @@
 #ifndef OD_H
 #define OD_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "301/CO_ODinterface.h"
 
@@ -52,17 +53,27 @@ typedef struct {
     uint64_t x2011_utc;
     struct {
         uint8_t highest_index_supported;
+        uint8_t reset;
+        uint8_t storage_percent;
+        uint8_t ram_percent;
+        uint32_t unix_time;
+        uint32_t uptime;
+        uint16_t power_cycles;
+        uint8_t boot_select;
+    } x3003_system;
+    struct {
+        uint8_t highest_index_supported;
         uint8_t length;
         char files_json[3];
         char file_name[1];
-        bool_t remove;
+        bool remove;
     } x3004_fread_cache;
     struct {
         uint8_t highest_index_supported;
         uint8_t length;
         char files_json[3];
         char file_name[1];
-        bool_t remove;
+        bool remove;
     } x3005_fwrite_cache;
 } OD_RAM_t;
 
@@ -87,7 +98,8 @@ extern OD_ATTR_OD OD_t *OD;
 #define OD_ENTRY_H1280 &OD->list[8]
 #define OD_ENTRY_H2010 &OD->list[9]
 #define OD_ENTRY_H2011 &OD->list[10]
-#define OD_ENTRY_H3004 &OD->list[11]
-#define OD_ENTRY_H3005 &OD->list[12]
+#define OD_ENTRY_H3003 &OD->list[11]
+#define OD_ENTRY_H3004 &OD->list[12]
+#define OD_ENTRY_H3005 &OD->list[13]
 
 #endif

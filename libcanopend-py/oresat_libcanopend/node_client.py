@@ -78,6 +78,8 @@ class NodeClient:
                 msg_req = OdWriteMessage.unpack(msg_recv)
                 entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
                 value = entry.raw_to_value(msg_req.raw)
+                if value == self._data[entry].value:
+                    continue
                 self._data[entry].value = value
                 if self._data[entry].write_cb is not None:
                     self._data[entry].write_cb(value)

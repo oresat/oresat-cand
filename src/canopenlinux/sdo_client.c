@@ -90,7 +90,7 @@ char* get_sdo_abort_string(uint32_t code) {
 }
 
 CO_SDO_abortCode_t
-sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void **buf, size_t *buf_size) {
+sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void **buf, size_t *buf_size, bool block_transfer) {
     CO_SDO_return_t ret;
 
     ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
@@ -98,34 +98,31 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
         return CO_SDO_AB_GENERAL;
     }
 
-    ret = CO_SDOclientUploadInitiate(client, index, subindex, SDO_TIMEOUT_MS, true);
+    ret = CO_SDOclientUploadInitiate(client, index, subindex, SDO_TIMEOUT_MS, block_transfer);
     if (ret != CO_SDO_RT_ok_communicationEnd) {
         return CO_SDO_AB_GENERAL;
     }
 
-    size_t size = 0;
     uint8_t *tmp = NULL;
     size_t offset = 0;
     size_t size_indicated = 0;
+    size_t size_transfered = 0;
     uint32_t time_diff_us = 10000;
     CO_SDO_abortCode_t abort_code = CO_SDO_AB_NONE;
     do {
 
-        ret = CO_SDOclientUpload(client, time_diff_us, false, &abort_code, &size_indicated, NULL, NULL);
+        ret = CO_SDOclientUpload(client, time_diff_us, false, &abort_code, &size_indicated, &size_transfered, NULL);
         if (ret < 0) {
             return abort_code;
         }
 
-        if (size_indicated != 0) {
-            if (size == 0) {
-                tmp = malloc(size_indicated + 1); // +1 for strings with missing '\0'
-                tmp[size_indicated] = '\0';
-                if (!tmp) {
-                    return CO_SDO_AB_GENERAL;
-                }
-                size = size_indicated;
+        if (size_transfered != 0) {
+            tmp = realloc(tmp, size_transfered + 1); // +1 for strings with missing '\0'
+            tmp[size_transfered] = '\0';
+            if (!tmp) {
+                return CO_SDO_AB_GENERAL;
             }
-            offset += CO_SDOclientUploadBufRead(client, &tmp[offset], size);
+            offset += CO_SDOclientUploadBufRead(client, &tmp[offset], size_transfered);
         }
 
         sleep_us(time_diff_us);
@@ -134,7 +131,7 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
     if (abort_code == CO_SDO_AB_NONE) {
         *buf = tmp;
         if (buf_size != NULL) {
-            *buf_size = size;
+            *buf_size = size_transfered;
         }
     } else if (tmp) {
         free(tmp);

@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -17,7 +18,6 @@
 #include "OD.h"
 #include "config.h"
 #include "CO_epoll_interface.h"
-#include "system.h"
 #include "fcache.h"
 #include "ecss_time_ext.h"
 #include "os_command_ext.h"
@@ -116,7 +116,7 @@ main(int argc, char* argv[]) {
     CO_ReturnError_t err;
     CO_CANptrSocketCan_t CANptr = {0};
     int opt;
-    bool_t firstRun = true;
+    bool firstRun = true;
     char* CANdevice = NULL;
     char dcf_path[PATH_MAX] = {0};
     bool used_extenal_od = false;
@@ -226,14 +226,14 @@ main(int argc, char* argv[]) {
     log_info("fread cache path: %s", fread_cache->dir_path);
     log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
-    ipc_init(od);
-
     os_command_extension_init(od);
     ecss_time_extension_init(od);
     file_transfer_extension_init(od, fread_cache, fwrite_cache);
     system_extension_init(od);
 
-    while (reset != CO_RESET_APP && reset != CO_RESET_QUIT && CO_endProgram == 0) {
+    ipc_init(od);
+
+    while ((reset != CO_RESET_APP) && (reset != CO_RESET_QUIT) && (CO_endProgram == 0)) {
         uint32_t errInfo;
 
         if (!firstRun) {
