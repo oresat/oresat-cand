@@ -39,6 +39,8 @@
 static CO_t* CO = NULL;
 static OD_t *od = NULL;
 static CO_config_t config;
+static fcache_t* fread_cache = NULL;
+static fcache_t* fwrite_cache = NULL;
 
 static uint8_t CO_activeNodeId = 0x7C;
 static CO_epoll_t epRT;
@@ -207,8 +209,6 @@ main(int argc, char* argv[]) {
     }
     CANptr.epoll_fd = epRT.epoll_fd;
 
-    fcache_t* fread_cache = NULL;
-    fcache_t* fwrite_cache = NULL;
     if (getuid() == 0)  {
         fread_cache = fcache_init("/var/cache/oresat/fread");
         fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
@@ -408,7 +408,7 @@ static void*
 ipc_responder_thread(void* arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_responder_process(CO, od, &config);
+        ipc_responder_process(CO, od, &config, fread_cache);
     }
     return NULL;
 }

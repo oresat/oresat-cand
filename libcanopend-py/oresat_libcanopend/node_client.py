@@ -1,3 +1,4 @@
+import os
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -14,6 +15,7 @@ from .message import (
     SdoReadMessage,
     SdoWriteMessage,
     TpdoSendMessage,
+    AddFileMessage,
 )
 
 
@@ -168,3 +170,11 @@ class NodeClient:
         if self._data[entry].write_cb is not None:
             raise ValueError(f"{entry.name} write callback is already set")
         self._data[entry].write_cb = write_cb
+
+    def add_file(self, file_path: str):
+        if file_path[0] != '/':
+            raise ValueError("file_path must be an absolute path")
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"{file_path} not found")
+        req_msg = AddFileMessage(file_path)
+        self._send_and_recv(req_msg)

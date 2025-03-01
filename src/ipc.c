@@ -11,6 +11,7 @@
 #include "CO_SDOserver.h"
 #include "sdo_client.h"
 #include "logger.h"
+#include "fcache.h"
 #include "ipc.h"
 
 #define ZMQ_HEADER_LEN 5
@@ -55,8 +56,8 @@ void ipc_init(OD_t *od) {
     }
 }
 
-void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
-    if (!co || !od || !config) {
+void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fread_cache) {
+    if (!co || !od || !config || !fread_cache) {
         log_error("ipc process null arg");
         return;
     }
@@ -181,6 +182,30 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 }
             } else {
                 log_error("unexpected length for sdo write message: %d", buffer_in_recv);
+            }
+            break;
+        }
+        case IPC_MSG_ID_ADD_FILE:
+        {
+            if (buffer_in_recv > 2) {
+                if (buffer_in[buffer_in_recv - 1] != '\0') {
+                    buffer_in[buffer_in_recv] = '\0';
+                    buffer_in_recv++;
+                }
+                int error = fcache_add(fread_cache, (char *)&buffer_in[1], false);
+                if (error) {
+                    buffer_out_send = buffer_in_recv;
+                    memcpy(buffer_out, buffer_in, buffer_out_send);
+                } else {
+                    ipc_msg_error_t msg_error = {
+                        .id = IPC_MSG_ID_ERROR_ABORT,
+                        .error = error,
+                    };
+                    buffer_out_send = sizeof(ipc_msg_error_t);
+                    memcpy(buffer_out, &msg_error, buffer_out_send);
+                }
+            } else {
+                log_error("unexpected length for add file message: %d", buffer_in_recv);
             }
             break;
         }

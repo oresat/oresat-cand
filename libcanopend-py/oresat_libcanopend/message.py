@@ -36,9 +36,8 @@ class DynamicMessage:
     def unpack(cls, raw: bytes):
         if raw[0] != cls.id:
             raise ValueError(f"first byte must be {cls.id}")
-        size = struct.calcsize(cls._fmt)
-        data = struct.unpack("<" + cls._fmt, raw[:size])
-        return cls(*data[1:], raw[size:])
+        data = struct.unpack("<" + cls._fmt, raw[: cls.size])
+        return cls(*data[1:], raw[cls.size :])
 
 
 @dataclass
@@ -95,9 +94,27 @@ class SdoWriteMessage(DynamicMessage):
 
 
 @dataclass
-class ErrorMessage(Message):
+class AddFileMessage(Message):
     _fmt: ClassVar[str] = "B"
+    id: ClassVar[int] = 0x6
+    file_path: str
+
+    def pack(self) -> bytes:
+        return struct.pack("<" + self._fmt, self.id) + self.file_path.encode()
+
+    @classmethod
+    def unpack(cls, raw: bytes):
+        if raw[0] != cls.id:
+            raise ValueError(f"first byte must be {cls.id}")
+        data = struct.pack("<" + cls._fmt, raw[: cls.size]) + (raw[cls.size :].decode(),)
+        return cls(*data[1:])
+
+
+@dataclass
+class ErrorMessage(Message):
+    _fmt: ClassVar[str] = "Bi"
     id: ClassVar[int] = 0x80
+    error: int
 
 
 @dataclass
