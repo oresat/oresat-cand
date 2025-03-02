@@ -64,6 +64,12 @@ class Entry(EntryDef, Enum):
     def __hash__(self) -> int:
         return self.index << 8 + self.subindex
 
+    def find_entry(self, index: int, subindex: int):
+        for entry in list(self):
+            if entry.index == index and entry.subindex:
+                return entry
+        raise ValueError(f"no entry with index 0x{index:X} and subindex 0x{subindex:X} exist")
+
     def bitfield_to_value(self, values: dict[EntryBitField, int]) -> int:
         if not self.bitfield:
             raise ValueError(f"entry {self.name} does not have a bitfield")
@@ -88,26 +94,29 @@ class Entry(EntryDef, Enum):
             values[bitfield] = (value & self.bitfield.mask) >> self.bitfield.offset
         return values
 
-    def raw_to_value(self, raw: bytes) -> Any:
+    def decode(self, raw: bytes) -> Any:
         value = raw
         try:
             if self.data_type == DataType.STR:
                 value = raw.decode()
-            elif self.data_type not in [DataType.BYTES, DataType.DOMAIN]:
+            elif self.data_type == DataType.BYTES:
+                value = raw
+            elif self.data_type != DataType.DOMAIN:
                 value = struct.unpack("<" + self.data_type.fmt, raw)[0]
         except Exception as e:
-            raise ValueError(f"{self.name} raw_to_value {e}")
+            raise ValueError(f"{self.name} decode {e}")
         return value
 
-    def value_to_raw(self, value: Any) -> bytes:
+    def encode(self, value: Any) -> bytes:
         raw = value
         try:
+            raw = b""
             if self.data_type == DataType.STR:
                 raw = value.encode()
-            elif self.data_type not in [DataType.BYTES, DataType.DOMAIN]:
+            elif self.data_type == DataType.BYTES:
+                raw = value
+            elif self.data_type != DataType.DOMAIN:
                 raw = struct.pack("<" + self.data_type.fmt, value)
-            if raw is None:
-                raw = b""
         except Exception as e:
-            raise ValueError(f"{self.name} value_to_raw {e}")
+            raise ValueError(f"{self.name} encode {e}")
         return raw

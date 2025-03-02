@@ -128,6 +128,12 @@ class EmcyRecvMessage(Message):
 
 
 @dataclass
+class SyncSendMessage(Message):
+    _fmt: ClassVar[str] = "BB"
+    id: ClassVar[int] = 0x9
+
+
+@dataclass
 class ErrorMessage(Message):
     _fmt: ClassVar[str] = "Bi"
     id: ClassVar[int] = 0x80

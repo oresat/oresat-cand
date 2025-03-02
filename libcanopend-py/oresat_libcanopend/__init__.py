@@ -3,6 +3,7 @@ try:
 except ImportError:
     __version__ = "0"
 
+from .ecss import EcssScet, EcssUtc
 from .entry import DataType, Entry, EntryBitField
 from .node_client import NodeClient
 
@@ -12,4 +13,6 @@ __all__ = [
     "EntryBitField",
     "NodeClient",
     "__version__",
+    "EcssScet",
+    "EcssUtc",
 ]

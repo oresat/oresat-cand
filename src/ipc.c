@@ -58,7 +58,7 @@ void ipc_init(OD_t *od) {
 
 void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fread_cache) {
     if (!co || !od || !config || !fread_cache) {
-        log_error("ipc process null arg");
+        log_error("responder: ipc process null arg");
         return;
     }
 
@@ -79,11 +79,11 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
         zmq_msg_close(&msg);
         return;
     } if (nbytes != ZMQ_HEADER_LEN) {
-        log_error("zmq msg recv header error %d", errno);
+        log_error("responder: zmq msg recv header error %d", errno);
         zmq_msg_close(&msg);
         return;
     } else if (nbytes != ZMQ_HEADER_LEN) {
-        log_error("unexpected header len %d", nbytes);
+        log_error("responder: unexpected header len %d", nbytes);
         zmq_msg_close(&msg);
         return;
     }
@@ -91,14 +91,14 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
 
     nbytes = zmq_msg_recv(&msg, responder, 0);
     if (nbytes != 0) {
-        log_error("zmq msg recv header error");
+        log_error("responder: zmq msg recv header error");
         zmq_msg_close(&msg);
         return;
     }
 
     nbytes = zmq_msg_recv(&msg, responder, 0);
     if (nbytes == -1) {
-        log_error("zmq msg recv error %d", errno);
+        log_error("responder: zmq msg recv error %d", errno);
         zmq_msg_close(&msg);
         return;
     }
@@ -119,7 +119,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
             if (buffer_in_recv == sizeof(ipc_msg_sdo_t)) {
                 ipc_msg_sdo_t msg_sdo;
                 memcpy(&msg_sdo, buffer_in, sizeof(ipc_msg_sdo_t));
-                log_debug("sdo read node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex);
+                log_debug("responder: sdo read node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex);
                 void *data = NULL;
                 size_t data_len = 0;
                 CO_SDO_abortCode_t ac = -1;
@@ -153,7 +153,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
                     memcpy(buffer_out, &msg_error_abort, buffer_out_send);
                 }
             } else {
-                log_error("unexpected length for sdo read message: %d", buffer_in_recv);
+                log_error("responder: unexpected length for sdo read message: %d", buffer_in_recv);
             }
             break;
         }
@@ -162,7 +162,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
             if (buffer_in_recv > (int)sizeof(ipc_msg_sdo_t)) {
                 ipc_msg_sdo_t msg_sdo;
                 memcpy(&msg_sdo, buffer_in, sizeof(ipc_msg_sdo_t));
-                log_debug("sdo write node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex);
+                log_debug("responder: sdo write node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex);
                 CO_SDO_abortCode_t ac = -1;
                 if (co->SDOclient) {
                     uint8_t *data = &buffer_in[sizeof(ipc_msg_sdo_t)];
@@ -181,7 +181,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
                     memcpy(buffer_out, &msg_error_abort, buffer_out_send);
                 }
             } else {
-                log_error("unexpected length for sdo write message: %d", buffer_in_recv);
+                log_error("responder: unexpected length for sdo write message: %d", buffer_in_recv);
             }
             break;
         }
@@ -205,13 +205,13 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
                     memcpy(buffer_out, &msg_error, buffer_out_send);
                 }
             } else {
-                log_error("unexpected length for add file message: %d", buffer_in_recv);
+                log_error("responder: unexpected length for add file message: %d", buffer_in_recv);
             }
             break;
         }
         default:
         {
-            log_debug("unknown msg id %d", buffer_in[0]);
+            log_debug("responder: unknown msg id %d", buffer_in[0]);
             buffer_out[0] = IPC_MSG_ID_ERROR_UNKNOWN_ID;
             buffer_out_send = 1;
             break;
@@ -225,7 +225,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
 
 void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
     if (!co || !od || !config) {
-        log_error("ipc process null arg");
+        log_error("consumer: ipc process null arg");
         return;
     }
 
@@ -243,10 +243,10 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
             if (buffer_in_recv == sizeof(ipc_msg_emcy_t)) {
                 ipc_msg_emcy_t msg_emcy;
                 memcpy(&msg_emcy, buffer_in, sizeof(ipc_msg_emcy_t));
-                log_info("emcy send with code 0x%X info 0x%X", msg_emcy.code, msg_emcy.info);
+                log_info("consumer: emcy send with code 0x%X info 0x%X", msg_emcy.code, msg_emcy.info);
                 CO_errorReport(co->em, CO_EM_GENERIC_ERROR, msg_emcy.code, msg_emcy.info);
             } else {
-                log_error("consumer emcy send message size error");
+                log_error("consumer: emcy send message size error");
             }
             break;
         }
@@ -256,13 +256,13 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 ipc_msg_tpdo_t msg_tpdo;
                 memcpy(&msg_tpdo, buffer_in, sizeof(ipc_msg_tpdo_t));
                 if (msg_tpdo.num < config->CNT_TPDO) {
-                    log_debug("tpdo send %d", msg_tpdo.num);
+                    log_debug("consumer: tpdo send %d", msg_tpdo.num);
                     co->TPDO[msg_tpdo.num].sendRequest = true;
                 } else {
-                    log_error("invalid tpdo number %d", msg_tpdo.num);
+                    log_error("consumer: invalid tpdo number %d", msg_tpdo.num);
                 }
             } else {
-                log_error("consume tpdo send message size error");
+                log_error("consumer: tpdo send message size error");
             }
             break;
         }
@@ -271,19 +271,33 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
             if (buffer_in_recv > (int)sizeof(ipc_msg_od_t)) {
                 ipc_msg_od_t msg_od;
                 memcpy(&msg_od, buffer_in, sizeof(ipc_msg_od_t));
-                log_debug("consume od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
+                log_debug("consumer: od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
                 OD_entry_t *entry = OD_find(od, msg_od.index);
                 uint8_t *data = &buffer_in[sizeof(ipc_msg_od_t)];
                 size_t data_len = buffer_in_recv - sizeof(ipc_msg_od_t);
                 OD_set_value(entry, msg_od.subindex, data, data_len, clients <= 1);
             } else {
-                log_error("consume od write message size error");
+                log_error("consumer: od write message size error");
+            }
+            break;
+        }
+        case IPC_MSG_ID_SYNC_SEND:
+        {
+            if (buffer_in_recv == 2) {
+                if (config->CNT_SYNC) {
+                    log_debug("consumer: sync send");
+                    CO_SYNCsend(co->SYNC);
+                } else {
+                    log_error("consumer: sync send not valid for node");
+                }
+            } else {
+                log_error("consumer: sync send message size error");
             }
             break;
         }
         default:
         {
-            log_debug("consume unknown msg id %d", buffer_in[0]);
+            log_debug("consumer: unknown msg id %d", buffer_in[0]);
             break;
         }
     }
@@ -339,13 +353,13 @@ static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t 
         int length = sizeof(ipc_msg_od_t) + sizeof(stream->dataLength);
         uint8_t *buf = malloc(length);
         if (buf == NULL) {
-            log_error("malloc error");
+            log_error("broadcaster: malloc error");
         } else {
             memcpy(buf, &msg_od, sizeof(ipc_msg_od_t));
             uint8_t *data_orig = (uint8_t *)stream->dataOrig;
             memcpy(buf, &data_orig[sizeof(ipc_msg_od_t)], stream->dataLength);
             zmq_send(broadcaster, buf, length, 0);
-            log_debug("broadcast od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
+            log_debug("broadcaster: od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
             free(buf);
         }
     }

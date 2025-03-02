@@ -14,6 +14,7 @@
 #define IPC_MSG_ID_ADD_FILE             0x06
 #define IPC_MSG_ID_HB_RECV              0x07
 #define IPC_MSG_ID_EMCY_RECV            0x08
+#define IPC_MSG_ID_SYNC_SEND            0x09
 
 #define IPC_MSG_ID_ERROR                0x80
 #define IPC_MSG_ID_ERROR_UNKNOWN_ID     0x81

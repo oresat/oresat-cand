@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 from dataclasses import dataclass
 from enum import Enum
 from threading import Lock, Thread
@@ -10,14 +10,15 @@ from zmq.utils.monitor import recv_monitor_message
 
 from .entry import Entry
 from .message import (
+    AddFileMessage,
+    EmcyRecvMessage,
     EmcySendMessage,
+    HbRecvMessage,
     OdWriteMessage,
     SdoReadMessage,
     SdoWriteMessage,
+    SyncSendMessage,
     TpdoSendMessage,
-    AddFileMessage,
-    HbRecvMessage,
-    EmcyRecvMessage,
 )
 
 
@@ -74,7 +75,7 @@ class NodeClient:
                 for entry, data in self._data.items():
                     if not data.write_cb:
                         continue
-                    raw = entry.value_to_raw(data.value)
+                    raw = entry.encode(data.value)
                     self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
             elif event == zmq.EVENT_DISCONNECTED:
                 logging.info("sockets disconnected")
@@ -93,7 +94,7 @@ class NodeClient:
                 try:
                     msg_req = OdWriteMessage.unpack(msg_recv)
                     entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
-                    value = entry.raw_to_value(msg_req.raw)
+                    value = entry.decode(msg_req.raw)
                     if value == self._data[entry].value:
                         continue
                     self._data[entry].value = value
@@ -161,13 +162,13 @@ class NodeClient:
                 _send_tpdo(t)
 
     def od_write(self, entry: Entry, value: Any):
-        if isinstance(value, Enum) and entry.enum:
+        if isinstance(value, Enum):
             value = value.value
         if not isinstance(value, entry.data_type.py_types):
             raise ValueError(f"value {value} ({type(value)}) invalid for {entry.data_type}")
 
         self._data[entry].value = value
-        raw = entry.value_to_raw(value)
+        raw = entry.encode(value)
         self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
 
     def od_write_multi(self, data: dict[Entry, Any]):
@@ -176,22 +177,23 @@ class NodeClient:
 
     def od_read(self, entry: Entry, use_enum: bool = True) -> Any:
         value = self._data[entry].value
-
-        if use_enum and entry.enum and isinstance(value, int):
-            value = entry.enum[value]
+        if use_enum and entry.enum and isinstance(value, int) and value in entry.enum:
+            value = entry.enum(value)
         return value
 
     def sdo_write(self, node_id: int, entry: Entry, value: Any):
-        raw = entry.value_to_raw(value)
+        if isinstance(value, Enum):
+            value = value.value
+        raw = entry.encode(value)
         req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, raw)
         self._send_and_recv(req_msg)
 
     def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
         req_msg = SdoReadMessage(node_id, entry.index, entry.subindex, b"")
         res_msg = self._send_and_recv(req_msg)
-        value = entry.raw_to_value(res_msg.raw)
-        if use_enum and entry.enum and isinstance(value, int):
-            value = entry.enum[value]
+        value = entry.decode(res_msg.raw)
+        if use_enum and entry.enum and isinstance(value, int) and value in entry.enum:
+            value = entry.enum(value)
         return value
 
     def add_write_callback(self, entry: Entry, write_cb: Callable[[Any], None]):
@@ -212,3 +214,6 @@ class NodeClient:
 
     def add_emcy_callback(self, emcy_cb: Callable[[int, int, int], None]):
         self._emcy_cb = emcy_cb
+
+    def send_sync(self):
+        self._broadcast(SyncSendMessage())
