@@ -15,6 +15,7 @@
 #define IPC_MSG_ID_HB_RECV              0x07
 #define IPC_MSG_ID_EMCY_RECV            0x08
 #define IPC_MSG_ID_SYNC_SEND            0x09
+#define IPC_MSG_ID_BUS_STATUS           0x0A
 
 #define IPC_MSG_ID_ERROR                0x80
 #define IPC_MSG_ID_ERROR_UNKNOWN_ID     0x81
@@ -75,5 +76,6 @@ void ipc_free(void);
 
 void ipc_broadcast_hb(uint8_t node_id, uint8_t state);
 void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info);
+void ipc_broadcast_bus_status(CO_t *co);
 
 #endif

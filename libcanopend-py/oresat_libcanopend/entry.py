@@ -94,7 +94,7 @@ class Entry(EntryDef, Enum):
             values[bitfield] = (value & self.bitfield.mask) >> self.bitfield.offset
         return values
 
-    def decode(self, raw: bytes) -> Any:
+    def decode(self, raw: bytes, use_enum: bool = True) -> Any:
         value = raw
         try:
             if self.data_type == DataType.STR:
@@ -103,11 +103,17 @@ class Entry(EntryDef, Enum):
                 value = raw
             elif self.data_type != DataType.DOMAIN:
                 value = struct.unpack("<" + self.data_type.fmt, raw)[0]
+
+            if use_enum and self.enum and isinstance(value, int) and value in self.enum:
+                value = self.enum(value)
         except Exception as e:
-            raise ValueError(f"{self.name} decode {e}")
+            raise ValueError(f"{self.name} decode {e}") from e
         return value
 
     def encode(self, value: Any) -> bytes:
+        if isinstance(value, Enum):
+            value = value.value
+
         raw = value
         try:
             raw = b""
@@ -118,5 +124,5 @@ class Entry(EntryDef, Enum):
             elif self.data_type != DataType.DOMAIN:
                 raw = struct.pack("<" + self.data_type.fmt, value)
         except Exception as e:
-            raise ValueError(f"{self.name} encode {e}")
+            raise ValueError(f"{self.name} encode {e}") from e
         return raw

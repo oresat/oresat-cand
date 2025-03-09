@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -24,6 +25,7 @@
 #include "file_transfer_ext.h"
 #include "system_ext.h"
 #include "dcf_od.h"
+#include "system.h"
 #include "ipc.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
@@ -341,6 +343,13 @@ main(int argc, char* argv[]) {
             CO_epoll_wait(&epMain);
             CO_epoll_processMain(&epMain, CO, false, &reset);
             CO_epoll_processLast(&epMain);
+
+            static uint32_t last_check = 0;
+            uint32_t uptime_s = get_uptime_s();
+            if (uptime_s != last_check) {
+                ipc_broadcast_bus_status(CO);
+                last_check = uptime_s;
+            }
         }
     }
 

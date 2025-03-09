@@ -11,6 +11,7 @@ from zmq.utils.monitor import recv_monitor_message
 from .entry import Entry
 from .message import (
     AddFileMessage,
+    BusStatusMessage,
     EmcyRecvMessage,
     EmcySendMessage,
     HbRecvMessage,
@@ -29,6 +30,12 @@ class NodeState(Enum):
     PRE_OPERATIONAL = 0x7F
 
 
+class BusStatus(Enum):
+    NOT_FOUND = 0
+    DOWN = 1
+    UP = 2
+
+
 @dataclass
 class LocalData:
     value: Union[int, float, str, bytes, None]
@@ -44,6 +51,8 @@ class NodeClient:
         self._debug = debug
         self._addr = addr
 
+        self._connected = False
+        self._bus_status = BusStatus.NOT_FOUND
         self._emcy_cb = None
         self._hb_cb = None
 
@@ -57,6 +66,7 @@ class NodeClient:
 
         self._consume_socket = self._context.socket(zmq.SUB)
         self._consume_socket.connect(f"tcp://{addr}:6001")
+        self._consume_socket.setsockopt(zmq.SUBSCRIBE, b"")
         self._consume_thread = Thread(target=self._consume_thread_run, daemon=True)
         self._consume_thread.start()
 
@@ -67,18 +77,29 @@ class NodeClient:
         self._monitor_thread = Thread(target=self._monitor_thread_run, daemon=True)
         self._monitor_thread.start()
 
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    @property
+    def bus_status(self) -> BusStatus:
+        return self._bus_status
+
     def _monitor_thread_run(self):
         while self._monitor_socket.poll():
             event = recv_monitor_message(self._monitor_socket)["event"]
-            if event == zmq.EVENT_CONNECTED:
+            if event in [zmq.EVENT_CONNECTED, zmq.EVENT_HANDSHAKE_SUCCEEDED]:
                 logging.info("sockets connected")
+                self._connected = True
                 for entry, data in self._data.items():
                     if not data.write_cb:
                         continue
                     raw = entry.encode(data.value)
                     self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
-            elif event == zmq.EVENT_DISCONNECTED:
+            elif event in [zmq.EVENT_DISCONNECTED, zmq.EVENT_CLOSED] and self._connected:
                 logging.info("sockets disconnected")
+                self._connected = False
+                self._bus_status = BusStatus.NOT_FOUND
 
     def _consume_thread_run(self):
         while True:
@@ -86,7 +107,7 @@ class NodeClient:
             if self._debug:
                 logging.debug("CONSUME: " + msg_recv.hex().upper())
 
-            if msg_recv[0] != OdWriteMessage.id:
+            if msg_recv[0] == OdWriteMessage.id:
                 if len(msg_recv) < OdWriteMessage.size:
                     logging.debug(f"invalid od write message {msg_recv.hex().upper()}")
                     continue
@@ -102,20 +123,26 @@ class NodeClient:
                         self._data[entry].write_cb(value)
                 except Exception as e:
                     logging.error(f"write callback error {entry.name} {e}")
-            elif msg_recv[0] != HbRecvMessage.id:
+            elif msg_recv[0] == HbRecvMessage.id:
                 if self._hb_cb:
                     try:
-                        msg_req = HbRecvMessage(msg_recv)
+                        msg_req = HbRecvMessage.unpack(msg_recv)
                         self._hb_cb(msg_req.node_id, NodeState(msg_req.state))
                     except Exception as e:
                         logging.error(f"heartbeat callback error: {e}")
-            elif msg_recv[0] != EmcyRecvMessage.id:
+            elif msg_recv[0] == EmcyRecvMessage.id:
                 if self._emcy_cb:
                     try:
-                        msg_req = EmcyRecvMessage(msg_recv)
+                        msg_req = EmcyRecvMessage.unpack(msg_recv)
                         self._emcy_cb(msg_req.node_id, msg_req.code, msg_req.info)
                     except Exception as e:
                         logging.error(f"emcy callback error: {e}")
+            elif msg_recv[0] == BusStatusMessage.id:
+                try:
+                    msg_req = BusStatusMessage.unpack(msg_recv)
+                    self._bus_status = BusStatus(msg_req.status)
+                except Exception as e:
+                    logging.error(f"bus status callback error: {e}")
 
     def _send_and_recv(self, req_msg):
         self._command_socket_lock.acquire()

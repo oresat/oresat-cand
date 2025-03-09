@@ -14,6 +14,10 @@
 #include "fcache.h"
 #include "ipc.h"
 
+#define CAN_BUS_NOT_FOUND 0
+#define CAN_BUS_DOWN 1
+#define CAN_BUS_UP 2
+
 #define ZMQ_HEADER_LEN 5
 #define BUFFER_SIZE 1024
 
@@ -383,4 +387,32 @@ void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
         .info = info,
     };
     zmq_send(broadcaster, &msg_emcy_recv, sizeof(ipc_msg_emcy_recv_t), 0);
+}
+
+static void ipc_broadcast_status(uint8_t status) {
+    uint8_t data[] = { IPC_MSG_ID_BUS_STATUS, status };
+    zmq_send(broadcaster, data, 2, 0);
+}
+
+void ipc_broadcast_bus_status(CO_t *co) {
+    if (!co || !co->CANmodule || !co->CANmodule->CANinterfaces) {
+        ipc_broadcast_status(CAN_BUS_NOT_FOUND);
+        return;
+    }
+
+    char file_path[50];
+    sprintf(file_path,"/sys/class/net/%s/carrier", co->CANmodule->CANinterfaces[0].ifName);
+    FILE *fp = fopen(file_path, "r");
+    if (fp) {
+        char up;
+        fread(&up, 1, 1, fp);
+        fclose(fp);
+        if (up == '1') {
+            ipc_broadcast_status(CAN_BUS_UP);
+        } else {
+            ipc_broadcast_status(CAN_BUS_DOWN);
+        }
+    } else {
+        ipc_broadcast_status(CAN_BUS_NOT_FOUND);
+    }
 }

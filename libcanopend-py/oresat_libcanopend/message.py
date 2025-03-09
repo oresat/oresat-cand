@@ -28,6 +28,10 @@ class DynamicMessage:
     _fmt: ClassVar[str]
     id: ClassVar[int]
 
+    @property
+    def size(self) -> int:
+        return struct.calcsize(self._fmt)
+
     def pack(self) -> bytes:
         data = astuple(self)
         return struct.pack("<" + self._fmt, self.id, *data[:-1]) + data[-1]
@@ -131,6 +135,13 @@ class EmcyRecvMessage(Message):
 class SyncSendMessage(Message):
     _fmt: ClassVar[str] = "BB"
     id: ClassVar[int] = 0x9
+
+
+@dataclass
+class BusStatusMessage(Message):
+    _fmt: ClassVar[str] = "BB"
+    id: ClassVar[int] = 0xA
+    status: int
 
 
 @dataclass
