@@ -21,7 +21,7 @@ class DataType(DataTypeDef, Enum):
     UINT32 = 0x7, (int,), "I"
     FLOAT32 = 0x8, (float,), "f"
     STR = 0x9, (str,), None
-    BYTES = 0xA, (bytes, bytearray), None
+    OCTET_STR = 0xA, (bytes, bytearray), None
     DOMAIN = 0xF, (bytes, bytearray, None), None
     FLOAT64 = 0x11, (float,), "d"
     INT64 = 0x15, (int,), "q"
@@ -66,7 +66,7 @@ class Entry(EntryDef, Enum):
 
     def find_entry(self, index: int, subindex: int):
         for entry in list(self):
-            if entry.index == index and entry.subindex:
+            if entry.index == index and entry.subindex == subindex:
                 return entry
         raise ValueError(f"no entry with index 0x{index:X} and subindex 0x{subindex:X} exist")
 
@@ -99,7 +99,7 @@ class Entry(EntryDef, Enum):
         try:
             if self.data_type == DataType.STR:
                 value = raw.decode()
-            elif self.data_type == DataType.BYTES:
+            elif self.data_type == DataType.OCTET_STR:
                 value = raw
             elif self.data_type != DataType.DOMAIN:
                 value = struct.unpack("<" + self.data_type.fmt, raw)[0]
@@ -119,7 +119,7 @@ class Entry(EntryDef, Enum):
             raw = b""
             if self.data_type == DataType.STR:
                 raw = value.encode()
-            elif self.data_type == DataType.BYTES:
+            elif self.data_type == DataType.OCTET_STR:
                 raw = value
             elif self.data_type != DataType.DOMAIN:
                 raw = struct.pack("<" + self.data_type.fmt, value)
