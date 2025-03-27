@@ -42,10 +42,10 @@ class LocalData:
     write_cb: Optional[Callable[[Any], None]] = None
 
 
-class NodeClient:
+class NodeClientBase:
     RECV_TIMEOUT_MS = 1000
 
-    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
+    def __init__(self, entries: Entry, addr: str, debug: bool):
         self._data = {entry: LocalData(entry.default) for entry in list(entries)}
         self._lookup_entry = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
         self._debug = debug
@@ -208,6 +208,29 @@ class NodeClient:
             value = entry.enum(value)
         return value
 
+    def add_write_callback(self, entry: Entry, write_cb: Callable[[Any], None]):
+        if self._data[entry].write_cb is not None:
+            raise ValueError(f"{entry.name} write callback is already set")
+        self._data[entry].write_cb = write_cb
+
+
+class NodeClient(NodeClientBase):
+    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
+        super().__init__(entries, addr, debug)
+
+    def add_file(self, file_path: str):
+        if file_path[0] != "/":
+            raise ValueError("file_path must be an absolute path")
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"{file_path} not found")
+        req_msg = AddFileMessage(file_path)
+        self._send_and_recv(req_msg)
+
+
+class MasterNodeClient(NodeClientBase):
+    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
+        super().__init__(entries, addr, debug)
+
     def sdo_write(self, node_id: int, entry: Entry, value: Any):
         if isinstance(value, Enum):
             value = value.value
@@ -222,19 +245,6 @@ class NodeClient:
         if use_enum and entry.enum and isinstance(value, int) and value in entry.enum:
             value = entry.enum(value)
         return value
-
-    def add_write_callback(self, entry: Entry, write_cb: Callable[[Any], None]):
-        if self._data[entry].write_cb is not None:
-            raise ValueError(f"{entry.name} write callback is already set")
-        self._data[entry].write_cb = write_cb
-
-    def add_file(self, file_path: str):
-        if file_path[0] != "/":
-            raise ValueError("file_path must be an absolute path")
-        if not os.path.isfile(file_path):
-            raise FileNotFoundError(f"{file_path} not found")
-        req_msg = AddFileMessage(file_path)
-        self._send_and_recv(req_msg)
 
     def add_heartbeat_callback(self, hb_cb: Callable[[int, NodeState], None]):
         self._hb_cb = hb_cb
