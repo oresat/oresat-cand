@@ -66,8 +66,12 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
         return;
     }
 
-    static uint8_t buffer_in[BUFFER_SIZE];
-    static uint8_t buffer_out[BUFFER_SIZE];
+    static uint8_t buffer_in_full[BUFFER_SIZE];
+    uint8_t *buffer_in = &buffer_in_full[0];
+
+    static uint8_t buffer_out_full[BUFFER_SIZE];
+    buffer_out_full[0] = IPC_MSG_VERSION;
+    uint8_t *buffer_out = &buffer_out_full[0];
 
     uint8_t header[ZMQ_HEADER_LEN];
 
@@ -107,9 +111,14 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
         return;
     }
     memcpy(&buffer_in, zmq_msg_data(&msg), nbytes);
-    int buffer_in_recv = nbytes;
+    int buffer_in_recv = nbytes - 1;  // minus 1 for IPC_MSG_VERSION
 
     zmq_msg_close(&msg);
+
+    if (buffer_in_full[0] != IPC_MSG_VERSION) {
+        log_error("responder: expected ipc protocal version %d not %d", IPC_MSG_VERSION, buffer_in_full[0]);
+        return;
+    }
 
     int buffer_out_send = 0;
 
@@ -224,7 +233,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
 
     zmq_send(responder, header, 5, ZMQ_SNDMORE);
     zmq_send(responder, header, 0, ZMQ_SNDMORE);
-    zmq_send(responder, buffer_out, buffer_out_send, 0);
+    zmq_send(responder, buffer_out_full, buffer_out_send + 1, 0);
 }
 
 void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
@@ -233,13 +242,16 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
         return;
     }
 
-    static uint8_t buffer_in[BUFFER_SIZE];
+    static uint8_t buffer_in_full[BUFFER_SIZE];
     int buffer_in_recv = 0;
 
-    buffer_in_recv = zmq_recv(consumer, buffer_in, BUFFER_SIZE, 0);
+    buffer_in_recv = zmq_recv(consumer, buffer_in_full, BUFFER_SIZE, 0);
     if (buffer_in_recv <= 0) {
         return;
     }
+
+    uint8_t *buffer_in = &buffer_in_full[1];
+    buffer_in_recv--; // remove 1 for IPC_MSG_VERSION
 
     switch (buffer_in[0]) {
         case IPC_MSG_ID_EMCY_SEND:
@@ -354,14 +366,15 @@ static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t 
             .index = stream->index,
             .subindex = stream->subIndex,
         };
-        int length = sizeof(ipc_msg_od_t) + sizeof(stream->dataLength);
+        int length = sizeof(ipc_msg_od_t) + sizeof(stream->dataLength) + 1;
         uint8_t *buf = malloc(length);
         if (buf == NULL) {
             log_error("broadcaster: malloc error");
         } else {
-            memcpy(buf, &msg_od, sizeof(ipc_msg_od_t));
+            buf[0] = IPC_MSG_VERSION;
+            memcpy(&buf[1], &msg_od, sizeof(ipc_msg_od_t));
             uint8_t *data_orig = (uint8_t *)stream->dataOrig;
-            memcpy(buf, &data_orig[sizeof(ipc_msg_od_t)], stream->dataLength);
+            memcpy(&buf[1 + sizeof(ipc_msg_od_t)], data_orig, stream->dataLength);
             zmq_send(broadcaster, buf, length, 0);
             log_debug("broadcaster: od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
             free(buf);
@@ -376,7 +389,11 @@ void ipc_broadcast_hb(uint8_t node_id, uint8_t state) {
         .node_id = node_id,
         .state = state,
     };
-    zmq_send(broadcaster, &msg_hb, sizeof(ipc_msg_hb_t), 0);
+    size_t size = 1 + sizeof(ipc_msg_hb_t);
+    uint8_t buf[size];
+    buf[0] = IPC_MSG_VERSION;
+    memcpy(&buf[1], &msg_hb, sizeof(ipc_msg_hb_t));
+    zmq_send(broadcaster, &buf, size, 0);
 }
 
 void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
@@ -386,12 +403,16 @@ void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
         .code = code,
         .info = info,
     };
-    zmq_send(broadcaster, &msg_emcy_recv, sizeof(ipc_msg_emcy_recv_t), 0);
+    size_t size = 1 + sizeof(ipc_msg_emcy_recv_t);
+    uint8_t buf[size];
+    buf[0] = IPC_MSG_VERSION;
+    memcpy(&buf[1], &msg_emcy_recv, sizeof(ipc_msg_emcy_recv_t));
+    zmq_send(broadcaster, &buf, size, 0);
 }
 
 static void ipc_broadcast_status(uint8_t status) {
-    uint8_t data[] = { IPC_MSG_ID_BUS_STATUS, status };
-    zmq_send(broadcaster, data, 2, 0);
+    uint8_t data[] = { IPC_MSG_VERSION, IPC_MSG_ID_BUS_STATUS, status };
+    zmq_send(broadcaster, data, 3, 0);
 }
 
 void ipc_broadcast_bus_status(CO_t *co) {

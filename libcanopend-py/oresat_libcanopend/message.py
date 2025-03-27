@@ -1,6 +1,10 @@
+import os
 import struct
 from dataclasses import astuple, dataclass
 from typing import ClassVar
+
+PROTOCAL_VERSION = 0  # bump on breaking changes to message formats
+PROTOCAL_VERSION_RAW = PROTOCAL_VERSION.to_bytes(1, "little")
 
 
 @dataclass
@@ -10,16 +14,18 @@ class Message:
 
     @property
     def size(self) -> int:
-        return struct.calcsize(self._fmt)
+        return struct.calcsize(self._fmt) + len(PROTOCAL_VERSION_RAW)
 
     def pack(self) -> bytes:
-        return struct.pack("<" + self._fmt, self.id, *astuple(self))
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id, *astuple(self))
 
     @classmethod
     def unpack(cls, raw: bytes):
-        if raw[0] != cls.id:
-            raise ValueError(f"first byte must be {cls.id}")
-        data = struct.unpack("<" + cls._fmt, raw)
+        if raw[0] != PROTOCAL_VERSION:
+            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
+        if raw[1] != cls.id:
+            raise ValueError(f"message id byte must be {cls.id}")
+        data = struct.unpack("<" + cls._fmt, raw[1:])
         return cls(*data[1:])
 
 
@@ -34,13 +40,15 @@ class DynamicMessage:
 
     def pack(self) -> bytes:
         data = astuple(self)
-        return struct.pack("<" + self._fmt, self.id, *data[:-1]) + data[-1]
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id, *data[:-1]) + data[-1]
 
     @classmethod
     def unpack(cls, raw: bytes):
-        if raw[0] != cls.id:
-            raise ValueError(f"first byte must be {cls.id}")
-        data = struct.unpack("<" + cls._fmt, raw[: cls.size])
+        if raw[0] != PROTOCAL_VERSION:
+            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
+        if raw[1] != cls.id:
+            raise ValueError(f"message id byte must be {cls.id}")
+        data = struct.unpack("<" + cls._fmt, raw[1 : cls.size])
         return cls(*data[1:], raw[cls.size :])
 
 
@@ -104,13 +112,20 @@ class AddFileMessage(Message):
     file_path: str
 
     def pack(self) -> bytes:
-        return struct.pack("<" + self._fmt, self.id) + self.file_path.encode()
+        if not self.file_path.startswith("/"):
+            raise ValueError(f"{self.file_path} must be an absolute path")
+        if not os.path.isfile(self.file_path):
+            raise FileNotFoundError(f"{self.file_path} does not exist")
+        raw = self.file_path.encode()
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id) + raw
 
     @classmethod
     def unpack(cls, raw: bytes):
-        if raw[0] != cls.id:
-            raise ValueError(f"first byte must be {cls.id}")
-        data = struct.pack("<" + cls._fmt, raw[: cls.size]) + (raw[cls.size :].decode(),)
+        if raw[0] != PROTOCAL_VERSION:
+            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
+        if raw[1] != cls.id:
+            raise ValueError(f"message id byte must be {cls.id}")
+        data = struct.pack("<" + cls._fmt, raw[1: cls.size]) + (raw[1 + cls.size :].decode(),)
         return cls(*data[1:])
 
 

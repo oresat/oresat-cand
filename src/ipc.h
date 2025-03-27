@@ -5,6 +5,8 @@
 #include "CANopen.h"
 #include "fcache.h"
 
+#define IPC_MSG_VERSION                 0
+
 #define IPC_MSG_ID_EMCY_SEND            0x00
 #define IPC_MSG_ID_TPDO_SEND            0x01
 #define IPC_MSG_ID_OD_READ              0x02
