@@ -1,10 +1,25 @@
+import json
 import os
 import struct
-from dataclasses import astuple, dataclass
+from dataclasses import astuple, dataclass, field
 from typing import ClassVar
 
 PROTOCAL_VERSION = 0  # bump on breaking changes to message formats
 PROTOCAL_VERSION_RAW = PROTOCAL_VERSION.to_bytes(1, "little")
+
+
+def _validate_unpack(msg_id: int, raw: bytes):
+    if raw[0] != PROTOCAL_VERSION:
+        raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
+    if raw[1] != msg_id:
+        raise ValueError(f"message id byte must be {msg_id}")
+
+
+def _validate_file_exist(file_path: str):
+    if not file_path.startswith("/"):
+        raise ValueError(f"{file_path} must be an absolute path")
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"{file_path} does not exist")
 
 
 @dataclass
@@ -21,10 +36,7 @@ class Message:
 
     @classmethod
     def unpack(cls, raw: bytes):
-        if raw[0] != PROTOCAL_VERSION:
-            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
-        if raw[1] != cls.id:
-            raise ValueError(f"message id byte must be {cls.id}")
+        _validate_unpack(cls.id, raw)
         data = struct.unpack("<" + cls._fmt, raw[1:])
         return cls(*data[1:])
 
@@ -44,10 +56,7 @@ class DynamicMessage:
 
     @classmethod
     def unpack(cls, raw: bytes):
-        if raw[0] != PROTOCAL_VERSION:
-            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
-        if raw[1] != cls.id:
-            raise ValueError(f"message id byte must be {cls.id}")
+        _validate_unpack(cls.id, raw)
         data = struct.unpack("<" + cls._fmt, raw[1 : cls.size])
         return cls(*data[1:], raw[cls.size :])
 
@@ -112,21 +121,19 @@ class AddFileMessage(Message):
     file_path: str
 
     def pack(self) -> bytes:
-        if not self.file_path.startswith("/"):
-            raise ValueError(f"{self.file_path} must be an absolute path")
-        if not os.path.isfile(self.file_path):
-            raise FileNotFoundError(f"{self.file_path} does not exist")
+        _validate_file_exist(self.file_path)
         raw = self.file_path.encode()
         return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id) + raw
 
     @classmethod
     def unpack(cls, raw: bytes):
-        if raw[0] != PROTOCAL_VERSION:
-            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
-        if raw[1] != cls.id:
-            raise ValueError(f"message id byte must be {cls.id}")
-        data = struct.pack("<" + cls._fmt, raw[1: cls.size]) + (raw[1 + cls.size :].decode(),)
-        return cls(*data[1:])
+        _validate_unpack(cls.id, raw)
+        path_raw = raw[1 + cls.size :]
+        if path_raw[-1] == b"\x00":
+            path_raw = path_raw[:-1]
+        path = path_raw.decode()
+        data = struct.pack("<" + cls._fmt, raw[1 : cls.size])
+        return cls(*data[1:], path)
 
 
 @dataclass
@@ -153,10 +160,75 @@ class SyncSendMessage(Message):
 
 
 @dataclass
-class BusStatusMessage(Message):
+class BusStateMessage(Message):
     _fmt: ClassVar[str] = "BB"
     id: ClassVar[int] = 0xA
-    status: int
+    state: int
+
+
+@dataclass
+class SdoReadFileMessage(Message):
+    _fmt: ClassVar[str] = "BB"
+    id: ClassVar[int] = 0xB
+    node_id: int
+    remote_file_path: str
+    local_file_path: str
+
+    def pack(self) -> bytes:
+        raw = self.remote_file_path.encode() + b"\x00" + self.local_file_path.encode() + b"\x00"
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id) + raw
+
+    @classmethod
+    def unpack(cls, raw: bytes):
+        _validate_unpack(cls.id, raw)
+        paths_raw = raw[1 + cls.size :].split(b"\x00")
+        paths = (paths_raw[0].decode(), paths_raw[1].decode())
+        data = struct.pack("<" + cls._fmt, raw[1 : cls.size]) + paths
+        return cls(*data[1:])
+
+
+@dataclass
+class SdoWriteFileMessage(Message):
+    _fmt: ClassVar[str] = "BB"
+    id: ClassVar[int] = 0xC
+    node_id: int
+    remote_file_path: str
+    local_file_path: str
+
+    def pack(self) -> bytes:
+        _validate_file_exist(self.local_file_path)
+        raw = self.remote_file_path.encode() + b"\x00" + self.local_file_path.encode() + b"\x00"
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id) + raw
+
+    @classmethod
+    def unpack(cls, raw: bytes):
+        _validate_unpack(cls.id, raw)
+        paths_raw = raw[1 + cls.size :].split(b"\x00")
+        paths = (paths_raw[0].decode(), paths_raw[1].decode())
+        data = struct.pack("<" + cls._fmt, raw[1 : cls.size]) + paths
+        return cls(*data[1:])
+
+
+@dataclass
+class SdoListFilesMessage(Message):
+    _fmt: ClassVar[str] = "BB"
+    id: ClassVar[int] = 0xD
+    node_id: int
+    files: list[str] = field(default_factory=list)
+
+    def pack(self) -> bytes:
+        raw = json.dumps(self.files).encode()
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id) + raw
+
+    @classmethod
+    def unpack(cls, raw: bytes):
+        _validate_unpack(cls.id, raw)
+        files_raw = raw[1 + cls.size :]
+        if files_raw[-1] == b"\x00":
+            files_raw = files_raw[:-1]
+        files = json.dumps(files_raw.decode())
+        data = struct.pack("<" + cls._fmt, raw[1 : cls.size])
+        return cls(*data[1:], files)
 
 
 @dataclass

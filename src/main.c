@@ -98,6 +98,7 @@ printUsage(char* progName) {
     printf("                      set to -1, then normal scheduler is used for RT thread.\n");
     printf("  -v                  Verbose logging\n");
     printf("  -d                  Load dcf\n");
+    printf("  -m                  Network manager node\n");
 }
 
 int
@@ -117,12 +118,13 @@ main(int argc, char* argv[]) {
     char* CANdevice = NULL;
     char dcf_path[PATH_MAX] = {0};
     bool used_extenal_od = false;
+    bool network_manager_node = false;
 
     if (argc < 2) {
         printUsage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    while ((opt = getopt(argc, argv, "hi:p:vd:")) != -1) {
+    while ((opt = getopt(argc, argv, "hp:vd:m")) != -1) {
         switch (opt) {
             case 'h':
                 printUsage(argv[0]);
@@ -135,6 +137,9 @@ main(int argc, char* argv[]) {
                 break;
             case 'd':
                 strncpy(dcf_path, optarg, strlen(optarg));
+                break;
+            case 'm':
+                network_manager_node = true;
                 break;
             default:
                 printUsage(argv[0]);
@@ -204,27 +209,29 @@ main(int argc, char* argv[]) {
     }
     CANptr.epoll_fd = epRT.epoll_fd;
 
-    if (getuid() == 0)  {
-        fread_cache = fcache_init("/var/cache/oresat/fread");
-        fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
-    } else {
-        log_warning("not running as root");
-        char tmp_path[PATH_MAX];
-        wordexp_t exp_result;
-        wordexp("~/.cache/oresat", &exp_result, 0);
-        sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fread");
-        fread_cache = fcache_init(tmp_path);
-        sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fwrite");
-        fwrite_cache = fcache_init(tmp_path);
-        wordfree(&exp_result);
-    }
-    log_info("fread cache path: %s", fread_cache->dir_path);
-    log_info("fwrite cache path: %s", fwrite_cache->dir_path);
+    if (network_manager_node == false) {
+        if (getuid() == 0)  {
+            fread_cache = fcache_init("/var/cache/oresat/fread");
+            fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
+        } else {
+            log_warning("not running as root");
+            char tmp_path[PATH_MAX];
+            wordexp_t exp_result;
+            wordexp("~/.cache/oresat", &exp_result, 0);
+            sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fread");
+            fread_cache = fcache_init(tmp_path);
+            sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fwrite");
+            fwrite_cache = fcache_init(tmp_path);
+            wordfree(&exp_result);
+        }
+        log_info("fread cache path: %s", fread_cache->dir_path);
+        log_info("fwrite cache path: %s", fwrite_cache->dir_path);
 
-    os_command_extension_init(od);
-    ecss_time_extension_init(od);
-    file_transfer_extension_init(od, fread_cache, fwrite_cache);
-    system_extension_init(od);
+        os_command_extension_init(od);
+        ecss_time_extension_init(od);
+        file_transfer_extension_init(od, fread_cache, fwrite_cache);
+        system_extension_init(od);
+    }
 
     ipc_init(od);
 
@@ -374,11 +381,13 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    os_command_extension_free();
-    file_transfer_extension_free();
+    if (network_manager_node == false) {
+        os_command_extension_free();
+        file_transfer_extension_free();
 
-    fcache_free(fread_cache);
-    fcache_free(fwrite_cache);
+        fcache_free(fread_cache);
+        fcache_free(fwrite_cache);
+    }
 
     CO_epoll_close(&epRT);
     CO_epoll_close(&epMain);

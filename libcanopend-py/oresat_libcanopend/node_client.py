@@ -11,12 +11,15 @@ from zmq.utils.monitor import recv_monitor_message
 from .entry import Entry
 from .message import (
     AddFileMessage,
-    BusStatusMessage,
+    BusStateMessage,
     EmcyRecvMessage,
     EmcySendMessage,
     HbRecvMessage,
     OdWriteMessage,
+    SdoListFilesMessage,
+    SdoReadFileMessage,
     SdoReadMessage,
+    SdoWriteFileMessage,
     SdoWriteMessage,
     SyncSendMessage,
     TpdoSendMessage,
@@ -30,7 +33,7 @@ class NodeState(Enum):
     PRE_OPERATIONAL = 0x7F
 
 
-class BusStatus(Enum):
+class BusState(Enum):
     NOT_FOUND = 0
     DOWN = 1
     UP = 2
@@ -52,9 +55,9 @@ class NodeClientBase:
         self._addr = addr
 
         self._connected = False
-        self._bus_status = BusStatus.NOT_FOUND
-        self._emcy_cb = None
-        self._hb_cb = None
+        self._bus_state = BusState.NOT_FOUND
+        self._emcy_cb: Optional[Callable] = None
+        self._hb_cb: Optional[Callable] = None
 
         self._context = zmq.Context()
 
@@ -82,13 +85,13 @@ class NodeClientBase:
         return self._connected
 
     @property
-    def bus_status(self) -> BusStatus:
-        return self._bus_status
+    def bus_state(self) -> BusState:
+        return self._bus_state
 
     def _monitor_thread_run(self):
         while self._monitor_socket.poll():
             event = recv_monitor_message(self._monitor_socket)["event"]
-            if event in [zmq.EVENT_CONNECTED, zmq.EVENT_HANDSHAKE_SUCCEEDED]:
+            if event == zmq.EVENT_HANDSHAKE_SUCCEEDED:
                 logging.info("sockets connected")
                 self._connected = True
                 for entry, data in self._data.items():
@@ -99,7 +102,7 @@ class NodeClientBase:
             elif event in [zmq.EVENT_DISCONNECTED, zmq.EVENT_CLOSED] and self._connected:
                 logging.info("sockets disconnected")
                 self._connected = False
-                self._bus_status = BusStatus.NOT_FOUND
+                self._bus_state = BusState.NOT_FOUND
 
     def _consume_thread_run(self):
         while True:
@@ -137,12 +140,12 @@ class NodeClientBase:
                         self._emcy_cb(msg_req.node_id, msg_req.code, msg_req.info)
                     except Exception as e:
                         logging.error(f"emcy callback error: {e}")
-            elif msg_recv[0] == BusStatusMessage.id:
+            elif msg_recv[0] == BusStateMessage.id:
                 try:
-                    msg_req = BusStatusMessage.unpack(msg_recv)
-                    self._bus_status = BusStatus(msg_req.status)
+                    msg_req = BusStateMessage.unpack(msg_recv)
+                    self._bus_state = BusState(msg_req.state)
                 except Exception as e:
-                    logging.error(f"bus status callback error: {e}")
+                    logging.error(f"bus state callback error: {e}")
 
     def _send_and_recv(self, req_msg):
         self._command_socket_lock.acquire()
@@ -227,15 +230,24 @@ class NodeClient(NodeClientBase):
         self._send_and_recv(req_msg)
 
 
-class MasterNodeClient(NodeClientBase):
+class NetworkManagerNodeClient(NodeClientBase):
     def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
         super().__init__(entries, addr, debug)
+
+    def sdo_list_files(self, node_id: int) -> list[str]:
+        req_msg = SdoListFilesMessage(node_id)
+        res_msg = self._send_and_recv(req_msg)
+        return res_msg.files
 
     def sdo_write(self, node_id: int, entry: Entry, value: Any):
         if isinstance(value, Enum):
             value = value.value
         raw = entry.encode(value)
         req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, raw)
+        self._send_and_recv(req_msg)
+
+    def sdo_write_file(self, node_id: int, local_file_path: str, remote_file_path: str = ""):
+        req_msg = SdoWriteFileMessage(node_id, local_file_path, remote_file_path)
         self._send_and_recv(req_msg)
 
     def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
@@ -245,6 +257,15 @@ class MasterNodeClient(NodeClientBase):
         if use_enum and entry.enum and isinstance(value, int) and value in entry.enum:
             value = entry.enum(value)
         return value
+
+    def sdo_read_file(
+        self, node_id: int, remote_file_path: str, local_file_path: str = "/tmp"
+    ) -> str:
+        if os.path.isdir(local_file_path):
+            local_file_path = os.path.join(local_file_path, os.path.basename(remote_file_path))
+        req_msg = SdoReadFileMessage(node_id, remote_file_path, local_file_path)
+        self._send_and_recv(req_msg)
+        return local_file_path
 
     def add_heartbeat_callback(self, hb_cb: Callable[[int, NodeState], None]):
         self._hb_cb = hb_cb

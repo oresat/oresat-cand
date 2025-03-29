@@ -10,6 +10,7 @@
 #include "CO_ODinterface.h"
 #include "CO_SDOserver.h"
 #include "sdo_client.h"
+#include "file_transfer_ext.h"
 #include "logger.h"
 #include "fcache.h"
 #include "ipc.h"
@@ -61,7 +62,7 @@ void ipc_init(OD_t *od) {
 }
 
 void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fread_cache) {
-    if (!co || !od || !config || !fread_cache) {
+    if (!co || !od || !config) {
         log_error("responder: ipc process null arg");
         return;
     }
@@ -200,7 +201,9 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
         }
         case IPC_MSG_ID_ADD_FILE:
         {
-            if (buffer_in_recv > 2) {
+            if (fread_cache == NULL) {
+                log_error("responder: add fread cache is null");
+            } else if (buffer_in_recv > 2) {
                 if (buffer_in[buffer_in_recv - 1] != '\0') {
                     buffer_in[buffer_in_recv] = '\0';
                     buffer_in_recv++;
@@ -219,6 +222,149 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
                 }
             } else {
                 log_error("responder: unexpected length for add file message: %d", buffer_in_recv);
+            }
+            break;
+        }
+        case IPC_MSG_ID_SDO_READ_FILE:
+        {
+            CO_SDO_abortCode_t ac = 0;
+            uint8_t node_id = buffer_in[1];
+            buffer_in[buffer_in_recv - 1] = 0;  // add trailing '\0'
+
+            size_t remote_file_path_offset = 2;
+            char *remote_file_path = (char *)&buffer_in[remote_file_path_offset];
+            size_t remote_file_path_maxlen = buffer_in_recv - remote_file_path_offset;
+            size_t remote_file_path_len = strnlen(remote_file_path, remote_file_path_maxlen) + 1;
+            if ((remote_file_path_len == 1) || (remote_file_path_len == remote_file_path_maxlen + 1)) {
+                log_error("responder: sdo read file had no remote path");
+                ac = -1;
+            }
+
+            uint32_t local_file_path_offset = remote_file_path_offset + remote_file_path_len;
+            char *local_file_path = (char *)&buffer_in[local_file_path_offset];
+            size_t local_file_path_maxlen = buffer_in_recv - remote_file_path_len;
+            size_t local_file_path_len = strnlen(remote_file_path, local_file_path_maxlen) + 1;
+            if ((local_file_path_len == 1) || (local_file_path_len == remote_file_path_maxlen + 1)) {
+                log_error("responder: sdo read file had no local path");
+                ac = -1;
+            }
+
+            log_debug("responder: sdo read file for node 0x%X from %s -> %s",
+                      node_id, remote_file_path, local_file_path);
+
+            if ((ac != 0) && (co->SDOclient)) {
+
+                ac = sdo_write_str(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, remote_file_path);
+            }
+
+            if (ac != 0) {
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = ac,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+            }
+
+            if ((ac != 0) && (co->SDOclient)) {
+                ac = sdo_read_to_file(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA, local_file_path);
+            }
+
+            if (ac != 0) {
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = ac,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+            }
+            break;
+        }
+        case IPC_MSG_ID_SDO_WRITE_FILE:
+        {
+            CO_SDO_abortCode_t ac = 0;
+            uint8_t node_id = buffer_in[1];
+            buffer_in[buffer_in_recv - 1] = 0;  // add trailing '\0'
+
+            size_t remote_file_path_offset = 2;
+            char *remote_file_path = (char *)&buffer_in[remote_file_path_offset];
+            size_t remote_file_path_maxlen = buffer_in_recv - remote_file_path_offset;
+            size_t remote_file_path_len = strnlen(remote_file_path, remote_file_path_maxlen) + 1;
+            if ((remote_file_path_len == 1) || (remote_file_path_len == remote_file_path_maxlen + 1)) {
+                log_error("responder: sdo write file had no remote path");
+                ac = -1;
+            }
+
+            uint32_t local_file_path_offset = remote_file_path_offset + remote_file_path_len;
+            char *local_file_path = (char *)&buffer_in[local_file_path_offset];
+            size_t local_file_path_maxlen = buffer_in_recv - remote_file_path_len;
+            size_t local_file_path_len = strnlen(remote_file_path, local_file_path_maxlen) + 1;
+            if ((local_file_path_len == 1) || (local_file_path_len == remote_file_path_maxlen + 1)) {
+                log_error("responder: sdo write file had no local path");
+                ac = -1;
+            }
+
+            log_debug("responder: sdo read file for node 0x%X from %s -> %s",
+                      node_id, remote_file_path, local_file_path);
+
+            if ((ac != 0) && (co->SDOclient)) {
+
+                ac = sdo_write_str(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, remote_file_path);
+            }
+
+            if ((ac != 0) && (co->SDOclient)) {
+                ac = sdo_write_from_file(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA, local_file_path);
+            }
+
+            if (ac != 0) {
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = ac,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+            }
+            break;
+        }
+        case IPC_MSG_ID_SDO_LIST_FILES:
+        {
+            uint8_t node_id = buffer_in[1];
+            log_debug("responder: sdo list file for node 0x%X", node_id);
+            void *data = NULL;
+            size_t data_len = 0;
+            CO_SDO_abortCode_t ac = -1;
+            if (co->SDOclient) {
+                ac = sdo_read_dynamic(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_FILES, &data, &data_len, false);
+            }
+            if (ac == 0) {
+                if (data == NULL) {
+                    ipc_msg_error_abort_t msg_error_abort = {
+                        .id = IPC_MSG_ID_ERROR_ABORT,
+                        .abort_code = CO_SDO_AB_NO_DATA,
+                    };
+                    buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                    memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+                } else if ((buffer_in_recv + data_len) > BUFFER_SIZE) {
+                    free(data);
+                    ipc_msg_error_abort_t msg_error_abort = {
+                        .id = IPC_MSG_ID_ERROR_ABORT,
+                        .abort_code = CO_SDO_AB_DATA_LONG,
+                    };
+                    buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                    memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+                } else {
+                    memcpy(buffer_out, buffer_in, buffer_in_recv);
+                    memcpy(&buffer_out[buffer_in_recv], data, data_len);
+                    buffer_out_send = buffer_in_recv + data_len;
+                    free(data);
+                }
+            } else {
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = ac,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
             }
             break;
         }
