@@ -230,7 +230,7 @@ class NodeClient(NodeClientBase):
         self._send_and_recv(req_msg)
 
 
-class NetworkManagerNodeClient(NodeClientBase):
+class ManagerNodeClient(NodeClientBase):
     def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
         super().__init__(entries, addr, debug)
 
