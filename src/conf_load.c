@@ -7,9 +7,10 @@
 #define CO_PROGMEM
 #define OD_DEFINITION
 #include "301/CO_ODinterface.h"
+#include "OD.h"
 #include "logger.h"
 #include "str2buf.h"
-#include "dcf_od.h"
+#include "conf_load.h"
 
 #define VARIABLE 0x7
 #define ARRAY 0x8
@@ -53,7 +54,7 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
 static bool parse_int_key(const char *string, int *value);
 static uint8_t get_access_attr(char *access_type);
 
-int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
+int od_conf_load(const char *file_path, OD_t **od, bool append_to_internal_od) {
     if (!file_path || !od) {
         return -1;
     }
@@ -62,11 +63,17 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
     uint32_t size = 0;
     OD_entry_t *od_list = NULL;
 
-    OD_entry_t entry_1018;
-    bool entry_1018_flag = false;
+    if (append_to_internal_od) {
+        size = OD->size;
+        od_list = malloc(sizeof(OD_entry_t) * (size + 1));
+        if (!od_list) {
+            return -1;
+        }
+        memset(od_list, 0, sizeof(OD_size_t) * (size + 1));
+    }
+    uint32_t internal_od_offset = 0;
 
     unsigned int e = 0;
-    int node_id_tmp = 0;
 
     struct tmp_data_t data;
     reset_tmp_data(&data);
@@ -80,6 +87,7 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
 
     FILE *fp = fopen(file_path, "r");
     if (fp == NULL) {
+        free(od_list);
         return -1;
     }
 
@@ -93,10 +101,13 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
 
     OD_entry_t *entry;
     int sub_offset = 0;
+    uint32_t last_interal_index = 0;
+    bool skip_entry = false;
 
     int l = -1;
     while ((nread = getline(&line, &len, fp)) != -1) {
         l++;
+        skip_entry = false;
 
         if ((line[0] == '\n') || (line[0] == ';')) {
             continue; // empty line or comment
@@ -105,23 +116,51 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
         if (line[0] == '[') {
             // new section add last index/subindex section
             if (section == INDEX) {
-                r = fill_entry_index(entry, &data);
-                if (r < 0) {
-                  log_error("failed to fill index 0x%X at entry %d", data.index, e);
-                  goto error;
+                if (append_to_internal_od) { // copy data/pointers from internal od entry
+                    while ((internal_od_offset < OD->size) && (data.index >= OD->list[internal_od_offset].index)) {
+                        last_interal_index = OD->list[internal_od_offset].index;
+                        memcpy(entry, &OD->list[internal_od_offset], sizeof(OD_entry_t));
+                        internal_od_offset++;
+                        entry = &od_list[e];
+                        e++;
+                    }
+                    if (data.index == last_interal_index) {
+                        log_warning("config redefined entry 0x%X, using internal def", last_interal_index);
+                        skip_entry = true;
+                        e--;
+                        size--;
+                        od_list = (OD_entry_t *)realloc(od_list, sizeof(OD_entry_t) * (size + 1));
+                    }
+                }
+
+                if (!skip_entry) {
+                    r = fill_entry_index(entry, &data);
+                    if (r < 0) {
+                      log_error("failed to fill index 0x%X at entry %d", data.index, e);
+                      goto error;
+                    }
                 }
                 sub_offset = 0;
             } else if (section == SUBINDEX) {
-                r = fill_entry_subindex(entry, &data, sub_offset);
-                if (r < 0) {
-                  log_error("failed to fill index 0x%X subindex 0x%X at entry %d", data.index, data.subindex, e);
-                  goto error;
+                if (append_to_internal_od) { // copy data/pointers from internal od entry
+                    if (data.index == last_interal_index) {
+                        log_warning("config redefined entry 0x%X - 0x%X, using internal def", last_interal_index, data.subindex);
+                        skip_entry = true;
+                    }
+                }
+                if (!skip_entry) {
+                    r = fill_entry_subindex(entry, &data, sub_offset);
+                    if (r < 0) {
+                      log_error("failed to fill index 0x%X subindex 0x%X at entry %d",
+                                data.index, data.subindex, e);
+                      goto error;
+                    }
                 }
                 sub_offset++;
             }
 
             if (e > size) {
-                log_error("invalid entry entry %d > size %d", e, size);
+                log_error("invalid entry %d > size %d", e, size);
                 goto error;
             }
 
@@ -135,23 +174,9 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
                 }
                 section = INDEX;
                 data.subindex = 0;
-                if ((data.index != 0x1000) && (data.index != 0x1018)) { // 0x1000 is the first entry
-                    e++;
-                }
 
                 entry = &od_list[e];
-
-                // deal with getting index 0x1018, before 0x1002 -> 0x10017
-                // every other index can be assumed to be in order
-                if (data.index == 0x1018) {
-                    entry = &entry_1018;
-                    entry_1018_flag = true;
-                } else if(entry_1018_flag && data.index > 0x1018) {
-                    entry_1018_flag = false;
-                    memcpy(entry, &entry_1018, sizeof(OD_entry_t));
-                    e++;
-                    entry = &od_list[e];
-                }
+                e++;
             } else if (!strncmp(&line[5], "sub", 3) &&
                        (((nread == 11) && (line[9] == ']')) ||
                         ((nread == 12) && (line[10] == ']')))) {
@@ -183,8 +208,6 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
                     memset(&od_list[e + 1], 0, sizeof(OD_entry_t) * tmp);
                 }
             }
-        } else if (!strncmp(line, "NodeID=", strlen("NodeID="))) {
-            parse_int_key(&line[strlen("NodeID=")], &node_id_tmp);
         } else if (!strncmp(line, "ObjectType=", strlen("ObjectType="))) {
             parse_int_key(&line[strlen("ObjectType=")], &data.object_type);
         } else if (!strncmp(line, "DataType=", strlen("DataType="))) {
@@ -224,7 +247,6 @@ int dcf_od_load(const char *file_path, OD_t **od, uint8_t *node_id) {
     out->list = od_list;
     out->size = size;
     *od = out;
-    *node_id = node_id_tmp;
     return 0;
 
 error:
@@ -232,12 +254,12 @@ error:
     if (out != NULL) {
         out->list = od_list;
         out->size = size;
-        dcf_od_free(out);
+        od_conf_free(out);
     }
     return -1;
 }
 
-void dcf_od_free(OD_t *od) {
+void od_conf_free(OD_t *od) {
     if (od == NULL) {
         return;
     }
@@ -253,7 +275,18 @@ void dcf_od_free(OD_t *od) {
     OD_obj_record_t *rec_var = NULL;
     for (int i=0; od->list[i].index != 0; i++) {
         entry = &od->list[i];
-        if ((entry == NULL) || (entry->odObject == NULL)) {
+        if ((entry == NULL) || (entry->odObject == NULL) || (entry->index == 0)) {
+            continue;
+        }
+
+        bool internal = false;
+        for (int j=0; OD->list[j].index != 0; j++) {
+            if (entry->index == OD->list[j].index) {
+                internal = true;
+                break;
+            }
+        }
+        if (internal) {
             continue;
         }
 

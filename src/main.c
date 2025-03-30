@@ -24,7 +24,7 @@
 #include "os_command_ext.h"
 #include "file_transfer_ext.h"
 #include "system_ext.h"
-#include "dcf_od.h"
+#include "conf_load.h"
 #include "system.h"
 #include "ipc.h"
 
@@ -41,6 +41,7 @@
 static CO_t* CO = NULL;
 static OD_t *od = NULL;
 static CO_config_t config;
+static CO_config_t base_config;
 static fcache_t* fread_cache = NULL;
 static fcache_t* fwrite_cache = NULL;
 
@@ -94,11 +95,39 @@ printUsage(char* progName) {
     printf("Usage: %s <CAN interface> [options]\n", progName);
     printf("\n");
     printf("Options:\n");
+    printf("  -m                  Network manager node\n");
+    printf("  -n                  Set node id\n");
+    printf("  -o                  Load od config\n");
     printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n");
     printf("                      set to -1, then normal scheduler is used for RT thread.\n");
     printf("  -v                  Verbose logging\n");
-    printf("  -d                  Load dcf\n");
-    printf("  -m                  Network manager node\n");
+}
+
+static void fix_cob_ids(OD_t *od, uint8_t node_id)
+{
+    if (!od) {
+        return;
+    }
+    int i;
+    uint32_t cob_id;
+	  OD_entry_t *entry;
+    for (int e=0; e < od->size; e++) {
+        entry = &od->list[e];
+        if ((entry->index >= 0x1400) && (entry->index < 0x1600)) {
+            i = entry->index - 0x1400;
+            OD_get_u32(entry, 1, &cob_id, true);
+            if ((cob_id & 0x7FF) == (0x200U + (0x100U * (i % 4)))) {
+                OD_set_u32(entry, 1, cob_id + node_id + (i / 4), true);
+            }
+        }
+        if ((entry->index >= 0x1800) && (entry->index < 0x1A00)) {
+            i = entry->index - 0x1800;
+            OD_get_u32(entry, 1, &cob_id, true);
+            if ((cob_id & 0x7FF) == (0x180U + (0x100U * (i % 4)))) {
+                OD_set_u32(entry, 1, cob_id + node_id + (i / 4), true);
+            }
+        }
+    }
 }
 
 int
@@ -124,22 +153,25 @@ main(int argc, char* argv[]) {
         printUsage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    while ((opt = getopt(argc, argv, "hp:vd:m")) != -1) {
+    while ((opt = getopt(argc, argv, "hmn:o:p:v")) != -1) {
         switch (opt) {
             case 'h':
                 printUsage(argv[0]);
                 exit(EXIT_SUCCESS);
+            case 'm':
+                network_manager_node = true;
+                break;
+            case 'n':
+                CO_activeNodeId = strtol(optarg, NULL, 16);
+                break;
+            case 'o':
+                strncpy(dcf_path, optarg, strlen(optarg));
+                break;
             case 'p':
                 rtPriority = strtol(optarg, NULL, 0);
                 break;
             case 'v':
                 log_level_set(LOG_DEBUG);
-                break;
-            case 'd':
-                strncpy(dcf_path, optarg, strlen(optarg));
-                break;
-            case 'm':
-                network_manager_node = true;
                 break;
             default:
                 printUsage(argv[0]);
@@ -167,7 +199,7 @@ main(int argc, char* argv[]) {
     log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
 
     if (dcf_path[0] != '\0') {
-        if (dcf_od_load(dcf_path, &od, &CO_activeNodeId) < 0) {
+        if (od_conf_load(dcf_path, &od, !network_manager_node) < 0) {
             log_critical("failed to load in external od from %s", dcf_path);
         } else {
             log_info("using external od from %s", dcf_path);
@@ -179,7 +211,9 @@ main(int argc, char* argv[]) {
         od = OD;
         used_extenal_od = false;
     }
+    fix_cob_ids(od, CO_activeNodeId);
     fill_config(od, &config);
+    fill_config(OD, &base_config);
 
     uint32_t heapMemoryUsed = 0;
     CO = CO_new(&config, &heapMemoryUsed);
@@ -234,6 +268,8 @@ main(int argc, char* argv[]) {
     }
 
     ipc_init(od);
+
+
 
     while ((reset != CO_RESET_APP) && (reset != CO_RESET_QUIT) && (CO_endProgram == 0)) {
         uint32_t errInfo;
@@ -395,7 +431,7 @@ main(int argc, char* argv[]) {
     CO_delete(CO);
 
     if (used_extenal_od && (od != NULL)) {
-        dcf_od_free(od);
+        od_conf_free(od);
     }
 
     log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "finished");
@@ -426,7 +462,7 @@ static void*
 ipc_consumer_thread(void* arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_consumer_process(CO, od, &config);
+        ipc_consumer_process(CO, od, &base_config, &config);
     }
     return NULL;
 }

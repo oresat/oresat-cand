@@ -382,8 +382,8 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
     zmq_send(responder, buffer_out_full, buffer_out_send + 1, 0);
 }
 
-void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
-    if (!co || !od || !config) {
+void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *base_config, CO_config_t *config) {
+    if (!co || !od || !base_config || !config) {
         log_error("consumer: ipc process null arg");
         return;
     }
@@ -419,7 +419,11 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *config) {
                 memcpy(&msg_tpdo, buffer_in, sizeof(ipc_msg_tpdo_t));
                 if (msg_tpdo.num < config->CNT_TPDO) {
                     log_debug("consumer: tpdo send %d", msg_tpdo.num);
-                    co->TPDO[msg_tpdo.num].sendRequest = true;
+                    uint8_t tpdos_offset = 0;
+                    if (base_config->CNT_TPDO != config->CNT_TPDO) {
+                        tpdos_offset = base_config->CNT_TPDO; // add the common base tpdos to num
+                    }
+                    co->TPDO[msg_tpdo.num + tpdos_offset].sendRequest = true;
                 } else {
                     log_error("consumer: invalid tpdo number %d", msg_tpdo.num);
                 }

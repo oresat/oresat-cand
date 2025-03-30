@@ -3,7 +3,7 @@ subdir('canopenlinux')
 subdir('od_extensions')
 
 libcanopend_files = [
-  'dcf_od.c',
+  'conf_load.c',
   'ipc.c',
   'main.c',
 ]

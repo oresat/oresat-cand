@@ -16,7 +16,7 @@ build_args = [
   '-DPROJECT_VERSION="' + meson.project_version() + '"',
 ]
 
-run_command('oresat-configs', 'fw-files', 'sw-base', '-d', 'src/canopenlinux', check: false)
+run_command('oresat-configs', 'canopennode', 'od.yaml', '-d', 'src/canopenlinux', check: true)
 
 subdir('src')
 

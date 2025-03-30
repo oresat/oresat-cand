@@ -1,3 +1,6 @@
+name: software
+nice_name: Software
+
 std_objects:
   - device_type
   - error_register
@@ -10,6 +13,7 @@ std_objects:
   - identity
   - synchronous_counter_overflow_value
   - sdo_server_parameter
+  - sdo_client_parameter
   - os_command
   - scet
   - utc
@@ -295,5 +299,6 @@ tpdos:
 
 rpdos:
   - num: 1
-    card: c3
-    tpdo_num: 1  # the time sync TPDO
+    fields:
+      - [scet]
+    cob_id: 0x181  # the time sync TPDO
