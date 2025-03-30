@@ -431,7 +431,7 @@ main(int argc, char* argv[]) {
     CO_delete(CO);
 
     if (used_extenal_od && (od != NULL)) {
-        od_conf_free(od);
+        od_conf_free(od, !network_manager_node);
     }
 
     log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "finished");

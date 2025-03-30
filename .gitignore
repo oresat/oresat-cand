@@ -3,5 +3,4 @@ build/
 .cache/
 *.dcf
 OD.*
-od.conf
-card.conf
+*.conf

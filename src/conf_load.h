@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "301/CO_ODinterface.h"
 
-int od_conf_load(const char *file_path, OD_t **od, bool append_to_internal_od);
-void od_conf_free(OD_t *od);
+int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od);
+void od_conf_free(OD_t *od, bool extend_internal_od);
 
 #endif

@@ -54,7 +54,7 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
 static bool parse_int_key(const char *string, int *value);
 static uint8_t get_access_attr(char *access_type);
 
-int od_conf_load(const char *file_path, OD_t **od, bool append_to_internal_od) {
+int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
     if (!file_path || !od) {
         return -1;
     }
@@ -63,7 +63,7 @@ int od_conf_load(const char *file_path, OD_t **od, bool append_to_internal_od) {
     uint32_t size = 0;
     OD_entry_t *od_list = NULL;
 
-    if (append_to_internal_od) {
+    if (extend_internal_od) {
         size = OD->size;
         od_list = malloc(sizeof(OD_entry_t) * (size + 1));
         if (!od_list) {
@@ -116,7 +116,7 @@ int od_conf_load(const char *file_path, OD_t **od, bool append_to_internal_od) {
         if (line[0] == '[') {
             // new section add last index/subindex section
             if (section == INDEX) {
-                if (append_to_internal_od) { // copy data/pointers from internal od entry
+                if (extend_internal_od) { // copy data/pointers from internal od entry
                     while ((internal_od_offset < OD->size) && (data.index >= OD->list[internal_od_offset].index)) {
                         last_interal_index = OD->list[internal_od_offset].index;
                         memcpy(entry, &OD->list[internal_od_offset], sizeof(OD_entry_t));
@@ -142,7 +142,7 @@ int od_conf_load(const char *file_path, OD_t **od, bool append_to_internal_od) {
                 }
                 sub_offset = 0;
             } else if (section == SUBINDEX) {
-                if (append_to_internal_od) { // copy data/pointers from internal od entry
+                if (extend_internal_od) { // copy data/pointers from internal od entry
                     if (data.index == last_interal_index) {
                         log_warning("config redefined entry 0x%X - 0x%X, using internal def", last_interal_index, data.subindex);
                         skip_entry = true;
@@ -254,12 +254,12 @@ error:
     if (out != NULL) {
         out->list = od_list;
         out->size = size;
-        od_conf_free(out);
+        od_conf_free(out, extend_internal_od);
     }
     return -1;
 }
 
-void od_conf_free(OD_t *od) {
+void od_conf_free(OD_t *od, bool extend_internal_od) {
     if (od == NULL) {
         return;
     }
@@ -279,15 +279,17 @@ void od_conf_free(OD_t *od) {
             continue;
         }
 
-        bool internal = false;
-        for (int j=0; OD->list[j].index != 0; j++) {
-            if (entry->index == OD->list[j].index) {
-                internal = true;
-                break;
+        if (extend_internal_od) {
+            bool internal = false;
+            for (int j=0; OD->list[j].index != 0; j++) {
+                if (entry->index == OD->list[j].index) {
+                    internal = true;
+                    break;
+                }
             }
-        }
-        if (internal) {
-            continue;
+            if (internal) {
+                continue;
+            }
         }
 
         if (entry->odObjectType == ODT_VAR) {
@@ -374,7 +376,7 @@ static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data) {
         arr->attribute0 = 0;
         arr->attribute = 0;
         arr->dataElementSizeof = 0;
-        arr->dataElementLength = data->total_subindexes - 1; // don't include sub0
+        arr->dataElementLength = 0; // same as dataElementSizeof
         entry->odObject = arr;
     } else if (data->object_type == RECORD) {
         entry->odObjectType = ODT_REC;
@@ -433,7 +435,6 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
                         memset(arr->dataOrig, 0,  size);
                     }
                     arr->attribute = get_access_attr(data->access_type) | ODA_MB;
-                    arr->dataElementSizeof = 0;
                     break;
                 default:
                 {
@@ -457,6 +458,7 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
                     break;
                 }
             }
+            arr->dataElementLength = arr->dataElementSizeof;
         }
     } else if (entry->odObjectType == ODT_REC) {
         OD_obj_record_t *rec = entry->odObject;
