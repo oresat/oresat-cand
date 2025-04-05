@@ -1,0 +1,2 @@
+build/oresat-caneopend /bin/
+oresat-canopend.service /etc/system/system

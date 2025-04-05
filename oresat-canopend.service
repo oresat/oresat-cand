@@ -1,0 +1,15 @@
+[Unit]
+Description=OreSat CANopend
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/oresat-canopend can0
+Restart=on-failure
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+Alias=canopend.service

@@ -1,0 +1,9 @@
+Source: oresat-canopend
+Maintainer: PSAS <oresat@pdx.edu>
+Build-Depends: debhelper (>= 11), meson, ninja
+Homepage: https://github.com/oresat/oresat-caneopnd
+
+Package: oresat-canopend
+Architecture: armhf
+Depends: ${misc:Depends}
+Description: OreSat CANopen system service
