@@ -116,15 +116,15 @@ static void fix_cob_ids(OD_t *od, uint8_t node_id)
         if ((entry->index >= 0x1400) && (entry->index < 0x1600)) {
             i = entry->index - 0x1400;
             OD_get_u32(entry, 1, &cob_id, true);
-            if ((cob_id & 0x7FF) == (0x200U + (0x100U * (i % 4)))) {
-                OD_set_u32(entry, 1, cob_id + node_id + (i / 4), true);
+            if ((cob_id & 0x7FF) == (0x200U + (0x100U * (i % 4) + (i / 4)))) {
+                OD_set_u32(entry, 1, cob_id + node_id, true);
             }
         }
         if ((entry->index >= 0x1800) && (entry->index < 0x1A00)) {
             i = entry->index - 0x1800;
             OD_get_u32(entry, 1, &cob_id, true);
-            if ((cob_id & 0x7FF) == (0x180U + (0x100U * (i % 4)))) {
-                OD_set_u32(entry, 1, cob_id + node_id + (i / 4), true);
+            if ((cob_id & 0x7FF) == (0x180U + (0x100U * (i % 4) + (i / 4)))) {
+                OD_set_u32(entry, 1, cob_id + node_id, true);
             }
         }
     }
