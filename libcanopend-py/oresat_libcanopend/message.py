@@ -77,7 +77,7 @@ class TpdoSendMessage(Message):
 
 
 @dataclass
-class OdReadMessage(DynamicMessage):
+class OdWriteMessage(DynamicMessage):
     _fmt: ClassVar[str] = "BHB"
     id: ClassVar[int] = 0x2
     index: int
@@ -86,18 +86,9 @@ class OdReadMessage(DynamicMessage):
 
 
 @dataclass
-class OdWriteMessage(DynamicMessage):
-    _fmt: ClassVar[str] = "BHB"
-    id: ClassVar[int] = 0x3
-    index: int
-    subindex: int
-    raw: bytes
-
-
-@dataclass
 class SdoReadMessage(DynamicMessage):
     _fmt: ClassVar[str] = "BBHB"
-    id: ClassVar[int] = 0x4
+    id: ClassVar[int] = 0x3
     node_id: int
     index: int
     subindex: int
@@ -107,7 +98,7 @@ class SdoReadMessage(DynamicMessage):
 @dataclass
 class SdoWriteMessage(DynamicMessage):
     _fmt: ClassVar[str] = "BBHB"
-    id: ClassVar[int] = 0x5
+    id: ClassVar[int] = 0x4
     node_id: int
     index: int
     subindex: int
@@ -117,7 +108,7 @@ class SdoWriteMessage(DynamicMessage):
 @dataclass
 class AddFileMessage(Message):
     _fmt: ClassVar[str] = "B"
-    id: ClassVar[int] = 0x6
+    id: ClassVar[int] = 0x5
     file_path: str
 
     def pack(self) -> bytes:
@@ -139,7 +130,7 @@ class AddFileMessage(Message):
 @dataclass
 class HbRecvMessage(Message):
     _fmt: ClassVar[str] = "BBB"
-    id: ClassVar[int] = 0x7
+    id: ClassVar[int] = 0x6
     node_id: int
     state: int
 
@@ -147,7 +138,7 @@ class HbRecvMessage(Message):
 @dataclass
 class EmcyRecvMessage(Message):
     _fmt: ClassVar[str] = "BBHI"
-    id: ClassVar[int] = 0x8
+    id: ClassVar[int] = 0x7
     node_id: int
     code: int
     info: int
@@ -156,20 +147,20 @@ class EmcyRecvMessage(Message):
 @dataclass
 class SyncSendMessage(Message):
     _fmt: ClassVar[str] = "BB"
-    id: ClassVar[int] = 0x9
+    id: ClassVar[int] = 0x8
 
 
 @dataclass
 class BusStateMessage(Message):
     _fmt: ClassVar[str] = "BB"
-    id: ClassVar[int] = 0xA
+    id: ClassVar[int] = 0x9
     state: int
 
 
 @dataclass
 class SdoReadFileMessage(Message):
     _fmt: ClassVar[str] = "BB"
-    id: ClassVar[int] = 0xB
+    id: ClassVar[int] = 0xA
     node_id: int
     remote_file_path: str
     local_file_path: str
@@ -190,7 +181,7 @@ class SdoReadFileMessage(Message):
 @dataclass
 class SdoWriteFileMessage(Message):
     _fmt: ClassVar[str] = "BB"
-    id: ClassVar[int] = 0xC
+    id: ClassVar[int] = 0xB
     node_id: int
     remote_file_path: str
     local_file_path: str
@@ -212,7 +203,7 @@ class SdoWriteFileMessage(Message):
 @dataclass
 class SdoListFilesMessage(Message):
     _fmt: ClassVar[str] = "BB"
-    id: ClassVar[int] = 0xD
+    id: ClassVar[int] = 0xC
     node_id: int
     files: list[str] = field(default_factory=list)
 
