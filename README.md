@@ -37,22 +37,23 @@ Run with the internal OD (Object Dictionary).
 ./oresat-canopend can0
 ```
 
-## Run with a dcf
+## Run with a od config
 
-A `.dcf` file is a `.conf`-like file to describe a OD. `oresat-canopend` can load
-in a dcf to use an app-specific OD instead of the internal OD.
+A `od.conf` file is a file to describe the extra objects to add the standard
+CANopen OD.
 
-OreSat dcfs can be generated with `oresat-configs` (in this case the oresat gps dcf).
-
-```bash
-oresat-configs dcf gps
-```
-
-Run with the generated dcf.
+OreSat `od.conf` files can be generated with `oresat-configs` from a project's
+`od.yaml` (the yaml lives in project repos).
 
 ```bash
-./oresat-canopend can0 -d gps.dcf
+oresat-configs canopend-config od.yaml
 ```
 
-**Note:** If the dcf fails to load for any reason, the internal OD will be used
-as a backup.
+Run with the generated conf.
+
+```bash
+./oresat-canopend can0 -o od.conf
+```
+
+**Note:** If the conf fails to load for any reason, the internal OD will still
+be used.
