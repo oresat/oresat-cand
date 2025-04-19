@@ -30,6 +30,7 @@ project_target = executable(
     libcanopend,
   ],
   dependencies: [
+    dependency('threads'),
     libcommon_dep,
     libcanopenlinux_dep,
     libodextensions_dep,

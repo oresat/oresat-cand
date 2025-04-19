@@ -9,6 +9,7 @@ libsdoclientnode = shared_library(
   libsdoclientnode_files,
   include_directories: libsdoclientnode_includes,
   dependencies: [
+    dependency('threads'),
     libcanopenlinux_dep,
     libcommon_dep,
   ],

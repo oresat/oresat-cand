@@ -13,6 +13,7 @@ libodextensions = shared_library(
   libodextensions_files,
   include_directories: libodextensions_includes,
   dependencies: [
+    dependency('threads'),
     libcommon_dep,
     libcanopenlinux_dep,
   ],

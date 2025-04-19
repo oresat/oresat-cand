@@ -4,6 +4,12 @@ A CANopen system service for OreSat Linux cards.
 
 ## Setup
 
+Install [ZeroMQ] for your system. See https://zeromq.org/download/ for more info.
+
+```bash
+sudo apt install libzmq3-dev
+```
+
 Install build dependencies
 
 ```bash
@@ -16,7 +22,7 @@ Initialize CANopenLinux git submodule
 git submodule update --init --recursive
 ```
 
-Build
+Setup build directory
 
 ```bash
 meson setup build
@@ -57,3 +63,5 @@ Run with the generated conf.
 
 **Note:** If the conf fails to load for any reason, the internal OD will still
 be used.
+
+[ZeroMQ]: https://zeromq.org
