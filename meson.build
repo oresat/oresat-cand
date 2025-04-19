@@ -1,9 +1,9 @@
 project(
   'oresat-canopend',
   'c',
-  version : '0', # run_command('git', 'describe', check: true).stdout.strip(),
+  version: run_command('git', 'describe', '--tags', '--abbrev=0', capture: true, check: true).stdout().strip(),
   license: 'GPL-3.0',
-  default_options : [
+  default_options: [
     'warning_level=3',
     'strip=true',
   ]
