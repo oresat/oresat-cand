@@ -146,7 +146,7 @@ main(int argc, char* argv[]) {
     bool firstRun = true;
     char* CANdevice = NULL;
     char dcf_path[PATH_MAX] = {0};
-    bool used_extenal_od = false;
+    bool loaded_od_conf = false;
     bool network_manager_node = false;
 
     if (argc < 2) {
@@ -212,16 +212,16 @@ main(int argc, char* argv[]) {
 
     if (dcf_path[0] != '\0') {
         if (od_conf_load(dcf_path, &od, !network_manager_node) < 0) {
-            log_critical("failed to load in external od from %s", dcf_path);
+            log_critical("failed to load app od objects from %s", dcf_path);
         } else {
-            log_info("using external od from %s", dcf_path);
-            used_extenal_od = true;
+            log_info("loading app od objects rom %s", dcf_path);
+            loaded_od_conf = true;
         }
     }
     if (od == NULL) {
-        log_info("using internal od", dcf_path);
+        log_info("using internal od objects only", dcf_path);
         od = OD;
-        used_extenal_od = false;
+        loaded_od_conf = false;
     }
     fix_cob_ids(od, CO_activeNodeId);
     fill_config(od, &config);
@@ -442,7 +442,7 @@ main(int argc, char* argv[]) {
     CO_CANsetConfigurationMode((void*)&CANptr);
     CO_delete(CO);
 
-    if (used_extenal_od && (od != NULL)) {
+    if (loaded_od_conf && (od != NULL)) {
         od_conf_free(od, !network_manager_node);
     }
 
