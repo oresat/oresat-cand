@@ -10,7 +10,7 @@ Install build dependencies
 pip install -r requirements.txt
 ```
 
-Initialize CANopenLinux submodule
+Initialize CANopenLinux git submodule
 
 ```bash
 git submodule update --init --recursive
@@ -31,16 +31,16 @@ meson compile
 
 ## Run
 
-Run with the internal OD (Object Dictionary).
+Run with only the internal OD (Object Dictionary).
 
 ```bash
 ./oresat-canopend can0
 ```
 
-## Run with a od config
+## Run with an od config
 
 A `od.conf` file is a file to describe the extra objects to add the standard
-CANopen OD.
+CANopend OD.
 
 OreSat `od.conf` files can be generated with `oresat-configs` from a project's
 `od.yaml` (the yaml lives in project repos).
