@@ -1,6 +1,23 @@
+# meson
 build/
+
+# vim
 *.swp
+
+# clangd
 .cache/
-*.dcf
+
+# oresat-configs generated files
 OD.*
+*.dcf
 *.conf
+
+# debian package
+debian/.debhelper/
+debian/changelog
+debian/debhelper-build-stamp
+debian/files
+debian/oresat-canopend.substvars
+debian/oresat-canopend/
+makedeb.sh
+*.deb

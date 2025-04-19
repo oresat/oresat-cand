@@ -1,6 +1,6 @@
 Source: oresat-canopend
 Maintainer: PSAS <oresat@pdx.edu>
-Build-Depends: debhelper (>= 11), meson, ninja
+Build-Depends: debhelper (>= 11), meson, ninja-build
 Homepage: https://github.com/oresat/oresat-caneopnd
 
 Package: oresat-canopend
