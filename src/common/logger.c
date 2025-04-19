@@ -1,20 +1,12 @@
+#include "logger.h"
 #include <libgen.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <sys/syslog.h>
-#include "logger.h"
 
 static char *LOG_LEVEL_STR[] = {
-    "DEBUG",
-    "INFO",
-    "NOTICE",
-    "WARNINNG",
-    "ERROR",
-    "CRITIAL",
-    "ALERT",
-    "EMERGENCY",
-    "UNKNOWN",
+    "DEBUG", "INFO", "NOTICE", "WARNINNG", "ERROR", "CRITIAL", "ALERT", "EMERGENCY", "UNKNOWN",
 };
 
 static int log_level = LOG_INFO;
@@ -30,33 +22,33 @@ void log_level_set(int level) {
 char *log_level_get_str(int level) {
     char *name = NULL;
     switch (level) {
-        case LOG_DEBUG:
-            name = LOG_LEVEL_STR[0];
-            break;
-        case LOG_INFO:
-            name = LOG_LEVEL_STR[1];
-            break;
-        case LOG_NOTICE:
-            name = LOG_LEVEL_STR[2];
-            break;
-        case LOG_WARNING:
-            name = LOG_LEVEL_STR[3];
-            break;
-        case LOG_ERR:
-            name = LOG_LEVEL_STR[4];
-            break;
-        case LOG_CRIT:
-            name = LOG_LEVEL_STR[5];
-            break;
-        case LOG_ALERT:
-            name = LOG_LEVEL_STR[6];
-            break;
-        case LOG_EMERG:
-            name = LOG_LEVEL_STR[7];
-            break;
-        default:
-            name = LOG_LEVEL_STR[8];
-            break;
+    case LOG_DEBUG:
+        name = LOG_LEVEL_STR[0];
+        break;
+    case LOG_INFO:
+        name = LOG_LEVEL_STR[1];
+        break;
+    case LOG_NOTICE:
+        name = LOG_LEVEL_STR[2];
+        break;
+    case LOG_WARNING:
+        name = LOG_LEVEL_STR[3];
+        break;
+    case LOG_ERR:
+        name = LOG_LEVEL_STR[4];
+        break;
+    case LOG_CRIT:
+        name = LOG_LEVEL_STR[5];
+        break;
+    case LOG_ALERT:
+        name = LOG_LEVEL_STR[6];
+        break;
+    case LOG_EMERG:
+        name = LOG_LEVEL_STR[7];
+        break;
+    default:
+        name = LOG_LEVEL_STR[8];
+        break;
     }
     return name;
 }

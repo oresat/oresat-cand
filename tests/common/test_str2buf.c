@@ -1,15 +1,14 @@
+#include "str2buf.h"
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include "str2buf.h"
 
-#define ASSERT_STR2BUF(dtype, str, value, ptr)\
-    ptr = str2buf_##dtype(str);\
-    assert((ptr != NULL) && (*ptr == value));\
+#define ASSERT_STR2BUF(dtype, str, value, ptr) \
+    ptr = str2buf_##dtype(str); \
+    assert((ptr != NULL) && (*ptr == value)); \
     free(ptr)
 
-#define ASSERT_STR2BUF_NULL(dtype, str)\
-    assert(str2buf_##dtype(str) == NULL)
+#define ASSERT_STR2BUF_NULL(dtype, str) assert(str2buf_##dtype(str) == NULL)
 
 void test_str2buf_bool(void) {
     bool *ptr;
@@ -156,7 +155,6 @@ void test_str2buf_float64(void) {
     ASSERT_STR2BUF_NULL(float64, "");
     ASSERT_STR2BUF_NULL(float64, "abc");
 }
-
 
 void test_str2buf_bytes(void) {
     uint8_t *buf = NULL;

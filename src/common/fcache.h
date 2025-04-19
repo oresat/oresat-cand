@@ -11,7 +11,7 @@ typedef struct {
     pthread_mutex_t mutex;
 } fcache_t;
 
-fcache_t* fcache_init(char *dir_path);
+fcache_t *fcache_init(char *dir_path);
 void fcache_free(fcache_t *cache);
 
 int fcache_add(fcache_t *cache, char *file_path, bool consume);
@@ -24,6 +24,6 @@ uint32_t fcache_size(fcache_t *cache);
 
 bool fcache_file_exist(fcache_t *cache, char *file_name);
 
-char* fcache_list_files_as_json(fcache_t *cache); // non-NULL results must be freed
+char *fcache_list_files_as_json(fcache_t *cache); // non-NULL results must be freed
 
 #endif

@@ -1,14 +1,14 @@
+#include "CANopen.h"
+#include "parse_int.h"
+#include "sdo_client.h"
+#include "sdo_client_node.h"
+#include "str2buf.h"
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "CANopen.h"
-#include "sdo_client_node.h"
-#include "str2buf.h"
-#include "parse_int.h"
-#include "sdo_client.h"
 
 extern CO_t *CO;
 
@@ -19,7 +19,7 @@ static void usage(char *name) {
            "uint32, uint64, float32, float64, string, bytes\n");
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc != 7) {
         printf("invalid number of args\n\n");
         usage(argv[0]);

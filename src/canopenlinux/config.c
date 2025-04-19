@@ -13,11 +13,13 @@ int fill_config(OD_t *od, CO_config_t *config) {
     // hb
     config->ENTRY_H1016 = OD_find(od, 0x1016);
     config->CNT_HB_CONS = config->ENTRY_H1016 != NULL;
-    config->CNT_ARR_1016 = config->ENTRY_H1016 ? ((OD_obj_array_t *)config->ENTRY_H1016->odObject)->dataElementLength : 0;
+    config->CNT_ARR_1016 =
+        config->ENTRY_H1016 ? ((OD_obj_array_t *)config->ENTRY_H1016->odObject)->dataElementLength : 0;
     // emcy
     config->ENTRY_H1003 = OD_find(od, 0x1003);
     config->CNT_EM = config->ENTRY_H1003 != NULL;
-    config->CNT_ARR_1003 = config->ENTRY_H1003 ? ((OD_obj_array_t *)config->ENTRY_H1003->odObject)->dataElementLength : 0;
+    config->CNT_ARR_1003 =
+        config->ENTRY_H1003 ? ((OD_obj_array_t *)config->ENTRY_H1003->odObject)->dataElementLength : 0;
     config->ENTRY_H1001 = OD_find(od, 0x1001);
     config->ENTRY_H1014 = OD_find(od, 0x1014);
     config->ENTRY_H1015 = OD_find(od, 0x1015);

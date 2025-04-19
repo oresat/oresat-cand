@@ -1,3 +1,11 @@
+#include "ipc.h"
+#include "CANopen.h"
+#include "CO_ODinterface.h"
+#include "CO_SDOserver.h"
+#include "fcache.h"
+#include "file_transfer_ext.h"
+#include "logger.h"
+#include "sdo_client.h"
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -6,21 +14,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <zmq.h>
-#include "CANopen.h"
-#include "CO_ODinterface.h"
-#include "CO_SDOserver.h"
-#include "sdo_client.h"
-#include "file_transfer_ext.h"
-#include "logger.h"
-#include "fcache.h"
-#include "ipc.h"
 
 #define CAN_BUS_NOT_FOUND 0
-#define CAN_BUS_DOWN 1
-#define CAN_BUS_UP 2
+#define CAN_BUS_DOWN      1
+#define CAN_BUS_UP        2
 
 #define ZMQ_HEADER_LEN 5
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE    1024
 
 static void *context = NULL;
 static void *responder = NULL;
@@ -29,7 +29,7 @@ static void *monitor = NULL;
 static void *consumer = NULL;
 static uint8_t clients = 0;
 
-static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten);
+static ODR_t ipc_broadcast_data(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten);
 
 static OD_extension_t ext = {
     .object = NULL,
@@ -54,14 +54,14 @@ void ipc_init(OD_t *od) {
     zmq_setsockopt(consumer, ZMQ_SUBSCRIBE, NULL, 0);
     zmq_bind(consumer, "tcp://*:6002");
 
-    for (int i=0; i<od->size; i++) {
+    for (int i = 0; i < od->size; i++) {
         if (od->list[i].index >= 0x4000) {
             OD_extension_init(&od->list[i], &ext);
         }
     }
 }
 
-void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fread_cache) {
+void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fread_cache) {
     if (!co || !od || !config) {
         log_error("responder: ipc process null arg");
         return;
@@ -87,7 +87,8 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
     if (nbytes < 0) {
         zmq_msg_close(&msg);
         return;
-    } if (nbytes != ZMQ_HEADER_LEN) {
+    }
+    if (nbytes != ZMQ_HEADER_LEN) {
         log_error("responder: zmq msg recv header error %d", errno);
         zmq_msg_close(&msg);
         return;
@@ -112,7 +113,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
         return;
     }
     memcpy(&buffer_in, zmq_msg_data(&msg), nbytes);
-    int buffer_in_recv = nbytes - 1;  // minus 1 for IPC_MSG_VERSION
+    int buffer_in_recv = nbytes - 1; // minus 1 for IPC_MSG_VERSION
 
     zmq_msg_close(&msg);
 
@@ -128,222 +129,23 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
     buffer_out_send = 1;
 
     switch (buffer_in[0]) {
-        case IPC_MSG_ID_SDO_READ:
-        {
-            if (buffer_in_recv == sizeof(ipc_msg_sdo_t)) {
-                ipc_msg_sdo_t msg_sdo;
-                memcpy(&msg_sdo, buffer_in, sizeof(ipc_msg_sdo_t));
-                log_debug("responder: sdo read node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex);
-                void *data = NULL;
-                size_t data_len = 0;
-                CO_SDO_abortCode_t ac = -1;
-                if (co->SDOclient) {
-                    ac = sdo_read_dynamic(co->SDOclient, msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex, &data, &data_len, false);
-                }
-                if (ac == 0) {
-                    if (data == NULL) {
-                        memcpy(buffer_out, buffer_in, buffer_in_recv);
-                        buffer_out_send = buffer_in_recv;
-                    } else if ((buffer_in_recv + data_len) > BUFFER_SIZE) {
-                        free(data);
-                        ipc_msg_error_abort_t msg_error_abort = {
-                            .id = IPC_MSG_ID_ERROR_ABORT,
-                            .abort_code = CO_SDO_AB_DATA_LONG,
-                        };
-                        buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                        memcpy(buffer_out, &msg_error_abort, buffer_out_send);
-                    } else {
-                        memcpy(buffer_out, buffer_in, buffer_in_recv);
-                        memcpy(&buffer_out[buffer_in_recv], data, data_len);
-                        buffer_out_send = buffer_in_recv + data_len;
-                        free(data);
-                    }
-                } else {
-                    ipc_msg_error_abort_t msg_error_abort = {
-                        .id = IPC_MSG_ID_ERROR_ABORT,
-                        .abort_code = ac,
-                    };
-                    buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                    memcpy(buffer_out, &msg_error_abort, buffer_out_send);
-                }
-            } else {
-                log_error("responder: unexpected length for sdo read message: %d", buffer_in_recv);
-            }
-            break;
-        }
-        case IPC_MSG_ID_SDO_WRITE:
-        {
-            if (buffer_in_recv > (int)sizeof(ipc_msg_sdo_t)) {
-                ipc_msg_sdo_t msg_sdo;
-                memcpy(&msg_sdo, buffer_in, sizeof(ipc_msg_sdo_t));
-                log_debug("responder: sdo write node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex);
-                CO_SDO_abortCode_t ac = -1;
-                if (co->SDOclient) {
-                    uint8_t *data = &buffer_in[sizeof(ipc_msg_sdo_t)];
-                    size_t data_len = buffer_in_recv - sizeof(ipc_msg_sdo_t);
-                    ac = sdo_write(co->SDOclient, msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex, data, data_len);
-                }
-                if (ac == 0) {
-                    memcpy(buffer_out, buffer_in, buffer_in_recv);
-                    buffer_out_send = buffer_in_recv;
-                } else {
-                    ipc_msg_error_abort_t msg_error_abort = {
-                        .id = IPC_MSG_ID_ERROR_ABORT,
-                        .abort_code = ac,
-                    };
-                    buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                    memcpy(buffer_out, &msg_error_abort, buffer_out_send);
-                }
-            } else {
-                log_error("responder: unexpected length for sdo write message: %d", buffer_in_recv);
-            }
-            break;
-        }
-        case IPC_MSG_ID_ADD_FILE:
-        {
-            if (fread_cache == NULL) {
-                log_error("responder: add fread cache is null");
-            } else if (buffer_in_recv > 2) {
-                if (buffer_in[buffer_in_recv - 1] != '\0') {
-                    buffer_in[buffer_in_recv] = '\0';
-                    buffer_in_recv++;
-                }
-                int error = fcache_add(fread_cache, (char *)&buffer_in[1], false);
-                if (error) {
-                    buffer_out_send = buffer_in_recv;
-                    memcpy(buffer_out, buffer_in, buffer_out_send);
-                } else {
-                    ipc_msg_error_t msg_error = {
-                        .id = IPC_MSG_ID_ERROR_ABORT,
-                        .error = error,
-                    };
-                    buffer_out_send = sizeof(ipc_msg_error_t);
-                    memcpy(buffer_out, &msg_error, buffer_out_send);
-                }
-            } else {
-                log_error("responder: unexpected length for add file message: %d", buffer_in_recv);
-            }
-            break;
-        }
-        case IPC_MSG_ID_SDO_READ_FILE:
-        {
-            CO_SDO_abortCode_t ac = 0;
-            uint8_t node_id = buffer_in[1];
-            buffer_in[buffer_in_recv - 1] = 0;  // add trailing '\0'
-
-            size_t remote_file_path_offset = 2;
-            char *remote_file_path = (char *)&buffer_in[remote_file_path_offset];
-            size_t remote_file_path_maxlen = buffer_in_recv - remote_file_path_offset;
-            size_t remote_file_path_len = strnlen(remote_file_path, remote_file_path_maxlen) + 1;
-            if ((remote_file_path_len == 1) || (remote_file_path_len == remote_file_path_maxlen + 1)) {
-                log_error("responder: sdo read file had no remote path");
-                ac = -1;
-            }
-
-            uint32_t local_file_path_offset = remote_file_path_offset + remote_file_path_len;
-            char *local_file_path = (char *)&buffer_in[local_file_path_offset];
-            size_t local_file_path_maxlen = buffer_in_recv - remote_file_path_len;
-            size_t local_file_path_len = strnlen(remote_file_path, local_file_path_maxlen) + 1;
-            if ((local_file_path_len == 1) || (local_file_path_len == remote_file_path_maxlen + 1)) {
-                log_error("responder: sdo read file had no local path");
-                ac = -1;
-            }
-
-            log_debug("responder: sdo read file for node 0x%X from %s -> %s",
-                      node_id, remote_file_path, local_file_path);
-
-            if ((ac != 0) && (co->SDOclient)) {
-
-                ac = sdo_write_str(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, remote_file_path);
-            }
-
-            if (ac != 0) {
-                ipc_msg_error_abort_t msg_error_abort = {
-                    .id = IPC_MSG_ID_ERROR_ABORT,
-                    .abort_code = ac,
-                };
-                buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
-            }
-
-            if ((ac != 0) && (co->SDOclient)) {
-                ac = sdo_read_to_file(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA, local_file_path);
-            }
-
-            if (ac != 0) {
-                ipc_msg_error_abort_t msg_error_abort = {
-                    .id = IPC_MSG_ID_ERROR_ABORT,
-                    .abort_code = ac,
-                };
-                buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
-            }
-            break;
-        }
-        case IPC_MSG_ID_SDO_WRITE_FILE:
-        {
-            CO_SDO_abortCode_t ac = 0;
-            uint8_t node_id = buffer_in[1];
-            buffer_in[buffer_in_recv - 1] = 0;  // add trailing '\0'
-
-            size_t remote_file_path_offset = 2;
-            char *remote_file_path = (char *)&buffer_in[remote_file_path_offset];
-            size_t remote_file_path_maxlen = buffer_in_recv - remote_file_path_offset;
-            size_t remote_file_path_len = strnlen(remote_file_path, remote_file_path_maxlen) + 1;
-            if ((remote_file_path_len == 1) || (remote_file_path_len == remote_file_path_maxlen + 1)) {
-                log_error("responder: sdo write file had no remote path");
-                ac = -1;
-            }
-
-            uint32_t local_file_path_offset = remote_file_path_offset + remote_file_path_len;
-            char *local_file_path = (char *)&buffer_in[local_file_path_offset];
-            size_t local_file_path_maxlen = buffer_in_recv - remote_file_path_len;
-            size_t local_file_path_len = strnlen(remote_file_path, local_file_path_maxlen) + 1;
-            if ((local_file_path_len == 1) || (local_file_path_len == remote_file_path_maxlen + 1)) {
-                log_error("responder: sdo write file had no local path");
-                ac = -1;
-            }
-
-            log_debug("responder: sdo read file for node 0x%X from %s -> %s",
-                      node_id, remote_file_path, local_file_path);
-
-            if ((ac != 0) && (co->SDOclient)) {
-
-                ac = sdo_write_str(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, remote_file_path);
-            }
-
-            if ((ac != 0) && (co->SDOclient)) {
-                ac = sdo_write_from_file(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA, local_file_path);
-            }
-
-            if (ac != 0) {
-                ipc_msg_error_abort_t msg_error_abort = {
-                    .id = IPC_MSG_ID_ERROR_ABORT,
-                    .abort_code = ac,
-                };
-                buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
-            }
-            break;
-        }
-        case IPC_MSG_ID_SDO_LIST_FILES:
-        {
-            uint8_t node_id = buffer_in[1];
-            log_debug("responder: sdo list file for node 0x%X", node_id);
+    case IPC_MSG_ID_SDO_READ: {
+        if (buffer_in_recv == sizeof(ipc_msg_sdo_t)) {
+            ipc_msg_sdo_t msg_sdo;
+            memcpy(&msg_sdo, buffer_in, sizeof(ipc_msg_sdo_t));
+            log_debug("responder: sdo read node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index,
+                      msg_sdo.subindex);
             void *data = NULL;
             size_t data_len = 0;
             CO_SDO_abortCode_t ac = -1;
             if (co->SDOclient) {
-                ac = sdo_read_dynamic(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_FILES, &data, &data_len, false);
+                ac = sdo_read_dynamic(co->SDOclient, msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex, &data, &data_len,
+                                      false);
             }
             if (ac == 0) {
                 if (data == NULL) {
-                    ipc_msg_error_abort_t msg_error_abort = {
-                        .id = IPC_MSG_ID_ERROR_ABORT,
-                        .abort_code = CO_SDO_AB_NO_DATA,
-                    };
-                    buffer_out_send = sizeof(ipc_msg_error_abort_t);
-                    memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+                    memcpy(buffer_out, buffer_in, buffer_in_recv);
+                    buffer_out_send = buffer_in_recv;
                 } else if ((buffer_in_recv + data_len) > BUFFER_SIZE) {
                     free(data);
                     ipc_msg_error_abort_t msg_error_abort = {
@@ -366,15 +168,213 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
                 buffer_out_send = sizeof(ipc_msg_error_abort_t);
                 memcpy(buffer_out, &msg_error_abort, buffer_out_send);
             }
-            break;
+        } else {
+            log_error("responder: unexpected length for sdo read message: %d", buffer_in_recv);
         }
-        default:
-        {
-            log_debug("responder: unknown msg id %d", buffer_in[0]);
-            buffer_out[0] = IPC_MSG_ID_ERROR_UNKNOWN_ID;
-            buffer_out_send = 1;
-            break;
+        break;
+    }
+    case IPC_MSG_ID_SDO_WRITE: {
+        if (buffer_in_recv > (int)sizeof(ipc_msg_sdo_t)) {
+            ipc_msg_sdo_t msg_sdo;
+            memcpy(&msg_sdo, buffer_in, sizeof(ipc_msg_sdo_t));
+            log_debug("responder: sdo write node 0x%X index 0x%X subindex 0x%X", msg_sdo.node_id, msg_sdo.index,
+                      msg_sdo.subindex);
+            CO_SDO_abortCode_t ac = -1;
+            if (co->SDOclient) {
+                uint8_t *data = &buffer_in[sizeof(ipc_msg_sdo_t)];
+                size_t data_len = buffer_in_recv - sizeof(ipc_msg_sdo_t);
+                ac = sdo_write(co->SDOclient, msg_sdo.node_id, msg_sdo.index, msg_sdo.subindex, data, data_len);
+            }
+            if (ac == 0) {
+                memcpy(buffer_out, buffer_in, buffer_in_recv);
+                buffer_out_send = buffer_in_recv;
+            } else {
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = ac,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+            }
+        } else {
+            log_error("responder: unexpected length for sdo write message: %d", buffer_in_recv);
         }
+        break;
+    }
+    case IPC_MSG_ID_ADD_FILE: {
+        if (fread_cache == NULL) {
+            log_error("responder: add fread cache is null");
+        } else if (buffer_in_recv > 2) {
+            if (buffer_in[buffer_in_recv - 1] != '\0') {
+                buffer_in[buffer_in_recv] = '\0';
+                buffer_in_recv++;
+            }
+            int error = fcache_add(fread_cache, (char *)&buffer_in[1], false);
+            if (error) {
+                buffer_out_send = buffer_in_recv;
+                memcpy(buffer_out, buffer_in, buffer_out_send);
+            } else {
+                ipc_msg_error_t msg_error = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .error = error,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_t);
+                memcpy(buffer_out, &msg_error, buffer_out_send);
+            }
+        } else {
+            log_error("responder: unexpected length for add file message: %d", buffer_in_recv);
+        }
+        break;
+    }
+    case IPC_MSG_ID_SDO_READ_FILE: {
+        CO_SDO_abortCode_t ac = 0;
+        uint8_t node_id = buffer_in[1];
+        buffer_in[buffer_in_recv - 1] = 0; // add trailing '\0'
+
+        size_t remote_file_path_offset = 2;
+        char *remote_file_path = (char *)&buffer_in[remote_file_path_offset];
+        size_t remote_file_path_maxlen = buffer_in_recv - remote_file_path_offset;
+        size_t remote_file_path_len = strnlen(remote_file_path, remote_file_path_maxlen) + 1;
+        if ((remote_file_path_len == 1) || (remote_file_path_len == remote_file_path_maxlen + 1)) {
+            log_error("responder: sdo read file had no remote path");
+            ac = -1;
+        }
+
+        uint32_t local_file_path_offset = remote_file_path_offset + remote_file_path_len;
+        char *local_file_path = (char *)&buffer_in[local_file_path_offset];
+        size_t local_file_path_maxlen = buffer_in_recv - remote_file_path_len;
+        size_t local_file_path_len = strnlen(remote_file_path, local_file_path_maxlen) + 1;
+        if ((local_file_path_len == 1) || (local_file_path_len == remote_file_path_maxlen + 1)) {
+            log_error("responder: sdo read file had no local path");
+            ac = -1;
+        }
+
+        log_debug("responder: sdo read file for node 0x%X from %s -> %s", node_id, remote_file_path, local_file_path);
+
+        if ((ac != 0) && (co->SDOclient)) {
+
+            ac =
+                sdo_write_str(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, remote_file_path);
+        }
+
+        if (ac != 0) {
+            ipc_msg_error_abort_t msg_error_abort = {
+                .id = IPC_MSG_ID_ERROR_ABORT,
+                .abort_code = ac,
+            };
+            buffer_out_send = sizeof(ipc_msg_error_abort_t);
+            memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+        }
+
+        if ((ac != 0) && (co->SDOclient)) {
+            ac = sdo_read_to_file(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA,
+                                  local_file_path);
+        }
+
+        if (ac != 0) {
+            ipc_msg_error_abort_t msg_error_abort = {
+                .id = IPC_MSG_ID_ERROR_ABORT,
+                .abort_code = ac,
+            };
+            buffer_out_send = sizeof(ipc_msg_error_abort_t);
+            memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+        }
+        break;
+    }
+    case IPC_MSG_ID_SDO_WRITE_FILE: {
+        CO_SDO_abortCode_t ac = 0;
+        uint8_t node_id = buffer_in[1];
+        buffer_in[buffer_in_recv - 1] = 0; // add trailing '\0'
+
+        size_t remote_file_path_offset = 2;
+        char *remote_file_path = (char *)&buffer_in[remote_file_path_offset];
+        size_t remote_file_path_maxlen = buffer_in_recv - remote_file_path_offset;
+        size_t remote_file_path_len = strnlen(remote_file_path, remote_file_path_maxlen) + 1;
+        if ((remote_file_path_len == 1) || (remote_file_path_len == remote_file_path_maxlen + 1)) {
+            log_error("responder: sdo write file had no remote path");
+            ac = -1;
+        }
+
+        uint32_t local_file_path_offset = remote_file_path_offset + remote_file_path_len;
+        char *local_file_path = (char *)&buffer_in[local_file_path_offset];
+        size_t local_file_path_maxlen = buffer_in_recv - remote_file_path_len;
+        size_t local_file_path_len = strnlen(remote_file_path, local_file_path_maxlen) + 1;
+        if ((local_file_path_len == 1) || (local_file_path_len == remote_file_path_maxlen + 1)) {
+            log_error("responder: sdo write file had no local path");
+            ac = -1;
+        }
+
+        log_debug("responder: sdo read file for node 0x%X from %s -> %s", node_id, remote_file_path, local_file_path);
+
+        if ((ac != 0) && (co->SDOclient)) {
+
+            ac = sdo_write_str(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME,
+                               remote_file_path);
+        }
+
+        if ((ac != 0) && (co->SDOclient)) {
+            ac = sdo_write_from_file(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA,
+                                     local_file_path);
+        }
+
+        if (ac != 0) {
+            ipc_msg_error_abort_t msg_error_abort = {
+                .id = IPC_MSG_ID_ERROR_ABORT,
+                .abort_code = ac,
+            };
+            buffer_out_send = sizeof(ipc_msg_error_abort_t);
+            memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+        }
+        break;
+    }
+    case IPC_MSG_ID_SDO_LIST_FILES: {
+        uint8_t node_id = buffer_in[1];
+        log_debug("responder: sdo list file for node 0x%X", node_id);
+        void *data = NULL;
+        size_t data_len = 0;
+        CO_SDO_abortCode_t ac = -1;
+        if (co->SDOclient) {
+            ac = sdo_read_dynamic(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_FILES, &data,
+                                  &data_len, false);
+        }
+        if (ac == 0) {
+            if (data == NULL) {
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = CO_SDO_AB_NO_DATA,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+            } else if ((buffer_in_recv + data_len) > BUFFER_SIZE) {
+                free(data);
+                ipc_msg_error_abort_t msg_error_abort = {
+                    .id = IPC_MSG_ID_ERROR_ABORT,
+                    .abort_code = CO_SDO_AB_DATA_LONG,
+                };
+                buffer_out_send = sizeof(ipc_msg_error_abort_t);
+                memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+            } else {
+                memcpy(buffer_out, buffer_in, buffer_in_recv);
+                memcpy(&buffer_out[buffer_in_recv], data, data_len);
+                buffer_out_send = buffer_in_recv + data_len;
+                free(data);
+            }
+        } else {
+            ipc_msg_error_abort_t msg_error_abort = {
+                .id = IPC_MSG_ID_ERROR_ABORT,
+                .abort_code = ac,
+            };
+            buffer_out_send = sizeof(ipc_msg_error_abort_t);
+            memcpy(buffer_out, &msg_error_abort, buffer_out_send);
+        }
+        break;
+    }
+    default: {
+        log_debug("responder: unknown msg id %d", buffer_in[0]);
+        buffer_out[0] = IPC_MSG_ID_ERROR_UNKNOWN_ID;
+        buffer_out_send = 1;
+        break;
+    }
     }
 
     zmq_send(responder, header, 5, ZMQ_SNDMORE);
@@ -382,7 +382,7 @@ void ipc_responder_process(CO_t* co, OD_t* od, CO_config_t *config, fcache_t *fr
     zmq_send(responder, buffer_out_full, buffer_out_send + 1, 0);
 }
 
-void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *base_config, CO_config_t *config) {
+void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config) {
     if (!co || !od || !base_config || !config) {
         log_error("consumer: ipc process null arg");
         return;
@@ -400,72 +400,67 @@ void ipc_consumer_process(CO_t* co, OD_t* od, CO_config_t *base_config, CO_confi
     buffer_in_recv--; // remove 1 for IPC_MSG_VERSION
 
     switch (buffer_in[0]) {
-        case IPC_MSG_ID_EMCY_SEND:
-        {
-            if (buffer_in_recv == sizeof(ipc_msg_emcy_t)) {
-                ipc_msg_emcy_t msg_emcy;
-                memcpy(&msg_emcy, buffer_in, sizeof(ipc_msg_emcy_t));
-                log_info("consumer: emcy send with code 0x%X info 0x%X", msg_emcy.code, msg_emcy.info);
-                CO_errorReport(co->em, CO_EM_GENERIC_ERROR, msg_emcy.code, msg_emcy.info);
-            } else {
-                log_error("consumer: emcy send message size error");
-            }
-            break;
+    case IPC_MSG_ID_EMCY_SEND: {
+        if (buffer_in_recv == sizeof(ipc_msg_emcy_t)) {
+            ipc_msg_emcy_t msg_emcy;
+            memcpy(&msg_emcy, buffer_in, sizeof(ipc_msg_emcy_t));
+            log_info("consumer: emcy send with code 0x%X info 0x%X", msg_emcy.code, msg_emcy.info);
+            CO_errorReport(co->em, CO_EM_GENERIC_ERROR, msg_emcy.code, msg_emcy.info);
+        } else {
+            log_error("consumer: emcy send message size error");
         }
-        case IPC_MSG_ID_TPDO_SEND:
-        {
-            if (buffer_in_recv == sizeof(ipc_msg_tpdo_t)) {
-                ipc_msg_tpdo_t msg_tpdo;
-                memcpy(&msg_tpdo, buffer_in, sizeof(ipc_msg_tpdo_t));
-                if (msg_tpdo.num < config->CNT_TPDO) {
-                    log_debug("consumer: tpdo send %d", msg_tpdo.num);
-                    uint8_t tpdos_offset = 0;
-                    if (base_config->CNT_TPDO != config->CNT_TPDO) {
-                        tpdos_offset = base_config->CNT_TPDO; // add the common base tpdos to num
-                    }
-                    co->TPDO[msg_tpdo.num + tpdos_offset].sendRequest = true;
-                } else {
-                    log_error("consumer: invalid tpdo number %d", msg_tpdo.num);
+        break;
+    }
+    case IPC_MSG_ID_TPDO_SEND: {
+        if (buffer_in_recv == sizeof(ipc_msg_tpdo_t)) {
+            ipc_msg_tpdo_t msg_tpdo;
+            memcpy(&msg_tpdo, buffer_in, sizeof(ipc_msg_tpdo_t));
+            if (msg_tpdo.num < config->CNT_TPDO) {
+                log_debug("consumer: tpdo send %d", msg_tpdo.num);
+                uint8_t tpdos_offset = 0;
+                if (base_config->CNT_TPDO != config->CNT_TPDO) {
+                    tpdos_offset = base_config->CNT_TPDO; // add the common base tpdos to num
                 }
+                co->TPDO[msg_tpdo.num + tpdos_offset].sendRequest = true;
             } else {
-                log_error("consumer: tpdo send message size error");
+                log_error("consumer: invalid tpdo number %d", msg_tpdo.num);
             }
-            break;
+        } else {
+            log_error("consumer: tpdo send message size error");
         }
-        case IPC_MSG_ID_OD_WRITE:
-        {
-            if (buffer_in_recv > (int)sizeof(ipc_msg_od_t)) {
-                ipc_msg_od_t msg_od;
-                memcpy(&msg_od, buffer_in, sizeof(ipc_msg_od_t));
-                log_debug("consumer: od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
-                OD_entry_t *entry = OD_find(od, msg_od.index);
-                uint8_t *data = &buffer_in[sizeof(ipc_msg_od_t)];
-                size_t data_len = buffer_in_recv - sizeof(ipc_msg_od_t);
-                OD_set_value(entry, msg_od.subindex, data, data_len, clients <= 1);
+        break;
+    }
+    case IPC_MSG_ID_OD_WRITE: {
+        if (buffer_in_recv > (int)sizeof(ipc_msg_od_t)) {
+            ipc_msg_od_t msg_od;
+            memcpy(&msg_od, buffer_in, sizeof(ipc_msg_od_t));
+            log_debug("consumer: od write index 0x%X subindex 0x%X", msg_od.index, msg_od.subindex);
+            OD_entry_t *entry = OD_find(od, msg_od.index);
+            uint8_t *data = &buffer_in[sizeof(ipc_msg_od_t)];
+            size_t data_len = buffer_in_recv - sizeof(ipc_msg_od_t);
+            OD_set_value(entry, msg_od.subindex, data, data_len, clients <= 1);
+        } else {
+            log_error("consumer: od write message size error");
+        }
+        break;
+    }
+    case IPC_MSG_ID_SYNC_SEND: {
+        if (buffer_in_recv == 2) {
+            if (config->CNT_SYNC) {
+                log_debug("consumer: sync send");
+                CO_SYNCsend(co->SYNC);
             } else {
-                log_error("consumer: od write message size error");
+                log_error("consumer: sync send not valid for node");
             }
-            break;
+        } else {
+            log_error("consumer: sync send message size error");
         }
-        case IPC_MSG_ID_SYNC_SEND:
-        {
-            if (buffer_in_recv == 2) {
-                if (config->CNT_SYNC) {
-                    log_debug("consumer: sync send");
-                    CO_SYNCsend(co->SYNC);
-                } else {
-                    log_error("consumer: sync send not valid for node");
-                }
-            } else {
-                log_error("consumer: sync send message size error");
-            }
-            break;
-        }
-        default:
-        {
-            log_debug("consumer: unknown msg id %d", buffer_in[0]);
-            break;
-        }
+        break;
+    }
+    default: {
+        log_debug("consumer: unknown msg id %d", buffer_in[0]);
+        break;
+    }
     }
 }
 
@@ -508,7 +503,7 @@ void ipc_free(void) {
     zmq_ctx_term(context);
 }
 
-static ODR_t ipc_broadcast_data(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
+static ODR_t ipc_broadcast_data(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten) {
     ODR_t r = OD_writeOriginal(stream, buf, count, countWritten);
     if ((r == ODR_OK) && (stream->dataOrig != NULL)) {
         ipc_msg_od_t msg_od = {
@@ -561,7 +556,7 @@ void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
 }
 
 static void ipc_broadcast_status(uint8_t status) {
-    uint8_t data[] = { IPC_MSG_VERSION, IPC_MSG_ID_BUS_STATUS, status };
+    uint8_t data[] = {IPC_MSG_VERSION, IPC_MSG_ID_BUS_STATUS, status};
     zmq_send(broadcaster, data, 3, 0);
 }
 
@@ -572,7 +567,7 @@ void ipc_broadcast_bus_status(CO_t *co) {
     }
 
     char file_path[50];
-    sprintf(file_path,"/sys/class/net/%s/carrier", co->CANmodule->CANinterfaces[0].ifName);
+    sprintf(file_path, "/sys/class/net/%s/carrier", co->CANmodule->CANinterfaces[0].ifName);
     FILE *fp = fopen(file_path, "r");
     if (fp) {
         char up;

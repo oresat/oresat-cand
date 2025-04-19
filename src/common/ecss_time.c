@@ -1,7 +1,7 @@
+#include "ecss_time.h"
 #include <errno.h>
 #include <stddef.h>
 #include <sys/time.h>
-#include "ecss_time.h"
 
 #define SECS_IN_DAY (24 * 60 * 60)
 

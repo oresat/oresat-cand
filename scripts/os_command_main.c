@@ -1,15 +1,15 @@
+#include "CANopen.h"
+#include "os_command_ext.h"
+#include "parse_int.h"
+#include "sdo_client.h"
+#include "sdo_client_node.h"
+#include "system.h"
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "CANopen.h"
-#include "system.h"
-#include "os_command_ext.h"
-#include "sdo_client_node.h"
-#include "parse_int.h"
-#include "sdo_client.h"
 
 extern CO_t *CO;
 
@@ -17,7 +17,7 @@ static void usage(char *name) {
     printf("%s <interface> <node-id> <command>\n", name);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc != 4) {
         printf("invalid number of args\n\n");
         usage(argv[0]);
@@ -37,7 +37,8 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    CO_SDO_abortCode_t abort_code = sdo_write_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_COMMAND, argv[3]);
+    CO_SDO_abortCode_t abort_code =
+        sdo_write_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_COMMAND, argv[3]);
     if (abort_code != 0) {
         goto abort;
     }

@@ -1,97 +1,97 @@
+#include "CANopen.h"
+#include "CO_epoll_interface.h"
+#include "OD.h"
+#include "conf_load.h"
+#include "config.h"
+#include "ecss_time_ext.h"
+#include "fcache.h"
+#include "file_transfer_ext.h"
+#include "ipc.h"
+#include "logger.h"
+#include "os_command_ext.h"
+#include "system.h"
+#include "system_ext.h"
+#include <linux/reboot.h>
+#include <net/if.h>
+#include <sched.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
-#include <sched.h>
-#include <signal.h>
-#include <stdarg.h>
+#include <sys/epoll.h>
+#include <sys/reboot.h>
 #include <syslog.h>
 #include <time.h>
-#include <sys/epoll.h>
-#include <net/if.h>
-#include <linux/reboot.h>
-#include <sys/reboot.h>
+#include <unistd.h>
 #include <wordexp.h>
-#include "logger.h"
-#include "CANopen.h"
-#include "OD.h"
-#include "config.h"
-#include "CO_epoll_interface.h"
-#include "fcache.h"
-#include "ecss_time_ext.h"
-#include "os_command_ext.h"
-#include "file_transfer_ext.h"
-#include "system_ext.h"
-#include "conf_load.h"
-#include "system.h"
-#include "ipc.h"
 
 #define MAIN_THREAD_INTERVAL_US 100000
-#define TMR_THREAD_INTERVAL_US 1000
+#define TMR_THREAD_INTERVAL_US  1000
 
 #define NMT_CONTROL \
     (CO_NMT_STARTUP_TO_OPERATIONAL | CO_NMT_ERR_ON_ERR_REG | CO_ERR_REG_GENERIC_ERR | CO_ERR_REG_COMMUNICATION)
-#define FIRST_HB_TIME 500
+#define FIRST_HB_TIME        500
 #define SDO_SRV_TIMEOUT_TIME 1000
 #define SDO_CLI_TIMEOUT_TIME 500
-#define SDO_CLI_BLOCK false
+#define SDO_CLI_BLOCK        false
 
-static CO_t* CO = NULL;
+static CO_t *CO = NULL;
 static OD_t *od = NULL;
 static CO_config_t config;
 static CO_config_t base_config;
-static fcache_t* fread_cache = NULL;
-static fcache_t* fwrite_cache = NULL;
+static fcache_t *fread_cache = NULL;
+static fcache_t *fwrite_cache = NULL;
 
 static uint8_t CO_activeNodeId = 0x7C;
 static CO_epoll_t epRT;
-static void* rt_thread(void* arg);
-static void* ipc_responder_thread(void* arg);
-static void* ipc_consumer_thread(void* arg);
-static void* ipc_monitor_thread(void* arg);
+static void *rt_thread(void *arg);
+static void *ipc_responder_thread(void *arg);
+static void *ipc_consumer_thread(void *arg);
+static void *ipc_monitor_thread(void *arg);
 static volatile sig_atomic_t CO_endProgram = 0;
 
-static void
-sigHandler(int sig) {
+static void sigHandler(int sig) {
     (void)sig;
     CO_endProgram = 1;
 }
 
-static void
-EmergencyRxCallback(const uint16_t ident, const uint16_t errorCode, const uint8_t errorRegister, const uint8_t errorBit, const uint32_t infoCode) {
+static void EmergencyRxCallback(const uint16_t ident, const uint16_t errorCode, const uint8_t errorRegister,
+                                const uint8_t errorBit, const uint32_t infoCode) {
     int16_t nodeIdRx = ident ? (ident & 0x7F) : CO_activeNodeId;
 
     log_printf(LOG_NOTICE, DBG_EMERGENCY_RX, nodeIdRx, errorCode, errorRegister, errorBit, infoCode);
     ipc_broadcast_emcy(nodeIdRx, errorCode, infoCode);
 }
 
-static char*
-NmtState2Str(CO_NMT_internalState_t state) {
+static char *NmtState2Str(CO_NMT_internalState_t state) {
     switch (state) {
-        case CO_NMT_INITIALIZING: return "initializing";
-        case CO_NMT_PRE_OPERATIONAL: return "pre-operational";
-        case CO_NMT_OPERATIONAL: return "operational";
-        case CO_NMT_STOPPED: return "stopped";
-        default: return "unknown";
+    case CO_NMT_INITIALIZING:
+        return "initializing";
+    case CO_NMT_PRE_OPERATIONAL:
+        return "pre-operational";
+    case CO_NMT_OPERATIONAL:
+        return "operational";
+    case CO_NMT_STOPPED:
+        return "stopped";
+    default:
+        return "unknown";
     }
 }
 
-static void
-NmtChangedCallback(CO_NMT_internalState_t state) {
+static void NmtChangedCallback(CO_NMT_internalState_t state) {
     log_printf(LOG_NOTICE, DBG_NMT_CHANGE, NmtState2Str(state), state);
 }
 
-static void
-HeartbeatNmtChangedCallback(uint8_t nodeId, uint8_t idx, CO_NMT_internalState_t state, void* object) {
+static void HeartbeatNmtChangedCallback(uint8_t nodeId, uint8_t idx, CO_NMT_internalState_t state, void *object) {
     (void)object;
     log_printf(LOG_NOTICE, DBG_HB_CONS_NMT_CHANGE, nodeId, idx, NmtState2Str(state), state);
     ipc_broadcast_hb(nodeId, state);
 }
 
-static void
-printUsage(char* progName) {
+static void printUsage(char *progName) {
     printf("Usage: %s <CAN interface> [options]\n", progName);
     printf("\n");
     printf("Options:\n");
@@ -103,15 +103,14 @@ printUsage(char* progName) {
     printf("  -v                  Verbose logging\n");
 }
 
-static void fix_cob_ids(OD_t *od, uint8_t node_id)
-{
+static void fix_cob_ids(OD_t *od, uint8_t node_id) {
     if (!od) {
         return;
     }
     int i;
     uint32_t cob_id;
-	  OD_entry_t *entry;
-    for (int e=0; e < od->size; e++) {
+    OD_entry_t *entry;
+    for (int e = 0; e < od->size; e++) {
         entry = &od->list[e];
         if ((entry->index >= 0x1400) && (entry->index < 0x1600)) {
             i = entry->index - 0x1400;
@@ -130,8 +129,7 @@ static void fix_cob_ids(OD_t *od, uint8_t node_id)
     }
 }
 
-int
-main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     int programExit = EXIT_SUCCESS;
     CO_epoll_t epMain;
     pthread_t rt_thread_id;
@@ -144,7 +142,7 @@ main(int argc, char* argv[]) {
     CO_CANptrSocketCan_t CANptr = {0};
     int opt;
     bool firstRun = true;
-    char* CANdevice = NULL;
+    char *CANdevice = NULL;
     char dcf_path[PATH_MAX] = {0};
     bool loaded_od_conf = false;
     bool network_manager_node = false;
@@ -155,27 +153,27 @@ main(int argc, char* argv[]) {
     }
     while ((opt = getopt(argc, argv, "hmn:o:p:v")) != -1) {
         switch (opt) {
-            case 'h':
-                printUsage(argv[0]);
-                exit(EXIT_SUCCESS);
-            case 'm':
-                network_manager_node = true;
-                break;
-            case 'n':
-                CO_activeNodeId = strtol(optarg, NULL, 16);
-                break;
-            case 'o':
-                strncpy(dcf_path, optarg, strlen(optarg));
-                break;
-            case 'p':
-                rtPriority = strtol(optarg, NULL, 0);
-                break;
-            case 'v':
-                log_level_set(LOG_DEBUG);
-                break;
-            default:
-                printUsage(argv[0]);
-                exit(EXIT_FAILURE);
+        case 'h':
+            printUsage(argv[0]);
+            exit(EXIT_SUCCESS);
+        case 'm':
+            network_manager_node = true;
+            break;
+        case 'n':
+            CO_activeNodeId = strtol(optarg, NULL, 16);
+            break;
+        case 'o':
+            strncpy(dcf_path, optarg, strlen(optarg));
+            break;
+        case 'p':
+            rtPriority = strtol(optarg, NULL, 0);
+            break;
+        case 'v':
+            log_level_set(LOG_DEBUG);
+            break;
+        default:
+            printUsage(argv[0]);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -188,8 +186,8 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (rtPriority != -1
-        && (rtPriority < sched_get_priority_min(SCHED_FIFO) || rtPriority > sched_get_priority_max(SCHED_FIFO))) {
+    if (rtPriority != -1 &&
+        (rtPriority < sched_get_priority_min(SCHED_FIFO) || rtPriority > sched_get_priority_max(SCHED_FIFO))) {
         log_printf(LOG_CRIT, DBG_WRONG_PRIORITY, rtPriority);
         printUsage(argv[0]);
         exit(EXIT_FAILURE);
@@ -256,7 +254,7 @@ main(int argc, char* argv[]) {
     CANptr.epoll_fd = epRT.epoll_fd;
 
     if (network_manager_node == false) {
-        if (getuid() == 0)  {
+        if (getuid() == 0) {
             fread_cache = fcache_init("/var/cache/oresat/fread");
             fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
         } else {
@@ -281,8 +279,6 @@ main(int argc, char* argv[]) {
 
     ipc_init(od);
 
-
-
     while ((reset != CO_RESET_APP) && (reset != CO_RESET_QUIT) && (CO_endProgram == 0)) {
         uint32_t errInfo;
 
@@ -292,10 +288,10 @@ main(int argc, char* argv[]) {
             CO_UNLOCK_OD(CO->CANmodule);
         }
 
-        CO_CANsetConfigurationMode((void*)&CANptr);
+        CO_CANsetConfigurationMode((void *)&CANptr);
         CO_CANmodule_disable(CO->CANmodule);
 
-        err = CO_CANinit(CO, (void*)&CANptr, 0 /* bit rate not used */);
+        err = CO_CANinit(CO, (void *)&CANptr, 0 /* bit rate not used */);
         if (err != CO_ERROR_NO) {
             log_printf(LOG_CRIT, DBG_CAN_OPEN, "CO_CANinit()", err);
             programExit = EXIT_FAILURE;
@@ -304,9 +300,8 @@ main(int argc, char* argv[]) {
         }
 
         errInfo = 0;
-        err = CO_CANopenInit(CO, NULL, NULL, od, NULL, NMT_CONTROL, FIRST_HB_TIME,
-                             SDO_SRV_TIMEOUT_TIME, SDO_CLI_TIMEOUT_TIME,
-                             SDO_CLI_BLOCK, CO_activeNodeId, &errInfo);
+        err = CO_CANopenInit(CO, NULL, NULL, od, NULL, NMT_CONTROL, FIRST_HB_TIME, SDO_SRV_TIMEOUT_TIME,
+                             SDO_CLI_TIMEOUT_TIME, SDO_CLI_BLOCK, CO_activeNodeId, &errInfo);
         if (err != CO_ERROR_NO) {
             if (err == CO_ERROR_OD_PARAMETERS) {
                 log_printf(LOG_CRIT, DBG_OD_ENTRY, errInfo);
@@ -439,7 +434,7 @@ main(int argc, char* argv[]) {
 
     CO_epoll_close(&epRT);
     CO_epoll_close(&epMain);
-    CO_CANsetConfigurationMode((void*)&CANptr);
+    CO_CANsetConfigurationMode((void *)&CANptr);
     CO_delete(CO);
 
     if (loaded_od_conf && (od != NULL)) {
@@ -450,8 +445,7 @@ main(int argc, char* argv[]) {
     exit(programExit);
 }
 
-static void*
-rt_thread(void* arg) {
+static void *rt_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
         CO_epoll_wait(&epRT);
@@ -461,8 +455,7 @@ rt_thread(void* arg) {
     return NULL;
 }
 
-static void*
-ipc_responder_thread(void* arg) {
+static void *ipc_responder_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
         ipc_responder_process(CO, od, &config, fread_cache);
@@ -470,8 +463,7 @@ ipc_responder_thread(void* arg) {
     return NULL;
 }
 
-static void*
-ipc_consumer_thread(void* arg) {
+static void *ipc_consumer_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
         ipc_consumer_process(CO, od, &base_config, &config);
@@ -479,8 +471,7 @@ ipc_consumer_thread(void* arg) {
     return NULL;
 }
 
-static void*
-ipc_monitor_thread(void* arg) {
+static void *ipc_monitor_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
         ipc_monitor_process();

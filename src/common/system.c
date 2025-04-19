@@ -1,3 +1,4 @@
+#include "system.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -14,9 +15,8 @@
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <time.h>
-#include "system.h"
+#include <unistd.h>
 
 void sleep_ms(uint32_t ms) {
     struct timespec ts;
@@ -94,8 +94,8 @@ bool is_file_in_dir(char *dir_path, char *file_name) {
 
     struct dirent *dir;
     while ((dir = readdir(d)) != NULL) { // directory found
-        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0
-            || strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
+        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0 ||
+            strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
             continue; // skip . and ..
         }
         if (strncmp(dir->d_name, file_name, strlen(dir->d_name)) == 0) {
@@ -128,7 +128,7 @@ int copy_file(char *src, char *dest) {
         return -errno;
     }
 
-    struct stat file_stat = { 0 };
+    struct stat file_stat = {0};
     int result = fstat(src_fd, &file_stat);
     off_t offset = 0;
     ssize_t written;
@@ -151,7 +151,9 @@ int move_file(char *src, char *dest) {
     int r = copy_file(src, dest);
     if (r >= 0) {
         r = remove(src);
-        if (r == -1) r = -errno;
+        if (r == -1) {
+            r = -errno;
+        }
     }
     return r;
 }
@@ -203,8 +205,8 @@ int clear_dir(char *path) {
     char filepath[PATH_MAX];
     struct dirent *dir;
     while ((dir = readdir(d)) != NULL) { // directory found
-        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0
-            || strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
+        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0 ||
+            strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
             continue; // skip . and ..
         }
 
@@ -231,8 +233,8 @@ int files_in_dir(char *path) {
     int count = 0;
     struct dirent *dir;
     while ((dir = readdir(d)) != NULL) { // directory found
-        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0
-            || strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
+        if (strncmp(dir->d_name, ".", strlen(dir->d_name)) == 0 ||
+            strncmp(dir->d_name, "..", strlen(dir->d_name)) == 0) {
             continue; // skip . and ..
         }
         count++;
@@ -260,7 +262,7 @@ int path_join(char *head, char *tail, char *out, uint32_t out_len) {
     } else if (head_is_root) {
         if (tail_startswith_slash) {
             sprintf(out, "%s", tail);
-        } else{
+        } else {
             sprintf(out, "/%s", tail);
         }
     } else {

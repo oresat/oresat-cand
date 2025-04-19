@@ -1,3 +1,8 @@
+#include "os_command_ext.h"
+#include "301/CO_ODinterface.h"
+#include "logger.h"
+#include "od_ext.h"
+#include "system.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -5,24 +10,19 @@
 #include <string.h>
 #include <sys/param.h>
 #include <unistd.h>
-#include "301/CO_ODinterface.h"
-#include "logger.h"
-#include "system.h"
-#include "od_ext.h"
-#include "os_command_ext.h"
 
 #define COMMAND_BUFFER_LEN 4096
-#define REPLY_BUFFER_LEN 10024
+#define REPLY_BUFFER_LEN   10024
 
 static bool running;
 static pthread_t thread_id;
 static uint8_t status = OS_CMD_ERROR_NO_REPLY;
-static char command[COMMAND_BUFFER_LEN] = { 0 };
-static char reply[REPLY_BUFFER_LEN] = { 0 };
+static char command[COMMAND_BUFFER_LEN] = {0};
+static char reply[REPLY_BUFFER_LEN] = {0};
 
-static ODR_t os_command_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten);
-static ODR_t os_command_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead);
-static void* os_command_thread(void* arg);
+static ODR_t os_command_write(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten);
+static ODR_t os_command_read(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead);
+static void *os_command_thread(void *arg);
 
 static OD_extension_t ext = {
     .object = NULL,
@@ -45,7 +45,7 @@ void os_command_extension_free(void) {
     pthread_join(thread_id, NULL);
 }
 
-static void* os_command_thread(void* arg) {
+static void *os_command_thread(void *arg) {
     (void)arg;
     running = true;
     unsigned int log_size = 50;
@@ -82,7 +82,7 @@ static void* os_command_thread(void* arg) {
     return NULL;
 }
 
-static ODR_t os_command_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead) {
+static ODR_t os_command_read(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead) {
     ODR_t r = ODR_OK;
     if (stream->subIndex == 0) {
         r = OD_readOriginal(stream, buf, count, countRead);
@@ -101,7 +101,7 @@ static ODR_t os_command_read(OD_stream_t* stream, void* buf, OD_size_t count, OD
     return r;
 }
 
-static ODR_t os_command_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
+static ODR_t os_command_write(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten) {
     ODR_t r = ODR_READONLY;
     if (stream->subIndex == OS_CMD_SUBINDEX_COMMAND) {
         if (status == OS_CMD_EXECUTING) {

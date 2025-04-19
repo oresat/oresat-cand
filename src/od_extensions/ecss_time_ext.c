@@ -1,9 +1,9 @@
+#include "ecss_time_ext.h"
 #include "301/CO_ODinterface.h"
 #include "ecss_time.h"
 #include "logger.h"
-#include "ecss_time_ext.h"
 
-static ODR_t ecss_scet_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead) {
+static ODR_t ecss_scet_read(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead) {
     (void)count;
     stream->dataLength = 8;
     get_ecss_scet((ecss_scet_t *)buf);
@@ -11,7 +11,7 @@ static ODR_t ecss_scet_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_
     return ODR_OK;
 }
 
-static ODR_t ecss_scet_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
+static ODR_t ecss_scet_write(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten) {
     (void)count;
     int r = set_ecss_scet((ecss_scet_t *)buf);
     if (r < 0) {
@@ -21,7 +21,7 @@ static ODR_t ecss_scet_write(OD_stream_t* stream, const void* buf, OD_size_t cou
     return ODR_OK;
 }
 
-static ODR_t ecss_utc_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead) {
+static ODR_t ecss_utc_read(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead) {
     (void)count;
     stream->dataLength = 8;
     get_ecss_utc((ecss_utc_t *)buf);
@@ -29,7 +29,7 @@ static ODR_t ecss_utc_read(OD_stream_t* stream, void* buf, OD_size_t count, OD_s
     return ODR_OK;
 }
 
-static ODR_t ecss_utc_write(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten) {
+static ODR_t ecss_utc_write(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten) {
     (void)count;
     int r = set_ecss_utc((ecss_utc_t *)buf);
     if (r < 0) {

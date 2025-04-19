@@ -8,30 +8,30 @@
 #define OD_DEFINITION
 #include "301/CO_ODinterface.h"
 #include "OD.h"
+#include "conf_load.h"
 #include "logger.h"
 #include "str2buf.h"
-#include "conf_load.h"
 
 #define VARIABLE 0x7
-#define ARRAY 0x8
-#define RECORD 0x9
+#define ARRAY    0x8
+#define RECORD   0x9
 
-#define BOOLEAN 0x1
-#define INTERGER8 0x2
-#define INTERGER16 0x3
-#define INTERGER32 0x4
-#define UNSIGNED8 0x5
-#define UNSIGNED16 0x6
-#define UNSIGNED32 0x7
-#define REAL32 0x8
+#define BOOLEAN        0x1
+#define INTERGER8      0x2
+#define INTERGER16     0x3
+#define INTERGER32     0x4
+#define UNSIGNED8      0x5
+#define UNSIGNED16     0x6
+#define UNSIGNED32     0x7
+#define REAL32         0x8
 #define VISIBLE_STRING 0x9
-#define OCTET_STRING 0xA
-#define DOMAIN 0xF
-#define REAL64 0x11
-#define INTERGER64 0x15
-#define UNSIGNED64 0x1B
+#define OCTET_STRING   0xA
+#define DOMAIN         0xF
+#define REAL64         0x11
+#define INTERGER64     0x15
+#define UNSIGNED64     0x1B
 
-#define INDEX 1
+#define INDEX    1
 #define SUBINDEX 2
 
 struct tmp_data_t {
@@ -136,24 +136,24 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
                 if (!skip_entry) {
                     r = fill_entry_index(entry, &data);
                     if (r < 0) {
-                      log_error("failed to fill index 0x%X at entry %d", data.index, e);
-                      goto error;
+                        log_error("failed to fill index 0x%X at entry %d", data.index, e);
+                        goto error;
                     }
                 }
                 sub_offset = 0;
             } else if (section == SUBINDEX) {
                 if (extend_internal_od) { // copy data/pointers from internal od entry
                     if (data.index == last_interal_index) {
-                        log_warning("config redefined entry 0x%X - 0x%X, using internal def", last_interal_index, data.subindex);
+                        log_warning("config redefined entry 0x%X - 0x%X, using internal def", last_interal_index,
+                                    data.subindex);
                         skip_entry = true;
                     }
                 }
                 if (!skip_entry) {
                     r = fill_entry_subindex(entry, &data, sub_offset);
                     if (r < 0) {
-                      log_error("failed to fill index 0x%X subindex 0x%X at entry %d",
-                                data.index, data.subindex, e);
-                      goto error;
+                        log_error("failed to fill index 0x%X subindex 0x%X at entry %d", data.index, data.subindex, e);
+                        goto error;
                     }
                 }
                 sub_offset++;
@@ -178,8 +178,7 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
                 entry = &od_list[e];
                 e++;
             } else if (!strncmp(&line[5], "sub", 3) &&
-                       (((nread == 11) && (line[9] == ']')) ||
-                        ((nread == 12) && (line[10] == ']')))) {
+                       (((nread == 11) && (line[9] == ']')) || ((nread == 12) && (line[10] == ']')))) {
                 if (parse_subindex_header(line, &data.index, &data.subindex)) {
                     log_error("invalid subindex header line: %d - %s", l, line);
                     goto error;
@@ -198,8 +197,8 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
                 // size + 1 is for the entry sentinal
                 p = (OD_entry_t *)realloc(od_list, sizeof(OD_entry_t) * (size + 1));
                 if (p == NULL) {
-                  log_error("entry realloc failed: %d", -errno);
-                  goto error;
+                    log_error("entry realloc failed: %d", -errno);
+                    goto error;
                 }
                 od_list = p;
                 if (size == 3) { // first manitory objects
@@ -215,13 +214,13 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
         } else if (!strncmp(line, "AccessType=", strlen("AccessType="))) {
             char *tmp = &line[strlen("AccessType=")];
             strncpy(data.access_type, tmp, strlen(tmp));
-            data.access_type[strlen(tmp)-1] = '\0';  // remove newline
+            data.access_type[strlen(tmp) - 1] = '\0'; // remove newline
         } else if (!strncmp(line, "PDOMapping=", strlen("PDOMapping"))) {
             parse_int_key(&line[strlen("PDOMapping=")], &data.pdo_mapping);
         } else if (!strncmp(line, "DefaultValue=", strlen("DefaultValue="))) {
             char *tmp = &line[strlen("DefaultValue=")];
             strncpy(data.default_value, tmp, strlen(tmp));
-            data.default_value[strlen(tmp)-1] = '\0';  // remove newline
+            data.default_value[strlen(tmp) - 1] = '\0'; // remove newline
         } else if (!strncmp(line, "SubNumber=", strlen("SubNumber="))) {
             parse_int_key(&line[strlen("SubNumber=")], &data.total_subindexes);
         }
@@ -231,14 +230,14 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
     if (section == INDEX) {
         r = fill_entry_index(entry, &data);
         if (r < 0) {
-          log_error("failed to fill index 0x%X at entry %d", data.index, e);
-          goto error;
+            log_error("failed to fill index 0x%X at entry %d", data.index, e);
+            goto error;
         }
     } else if (section == SUBINDEX) {
         r = fill_entry_subindex(entry, &data, sub_offset);
         if (r < 0) {
-          log_error("failed to fill index 0x%X subindex 0x%X at entry %d", data.index, data.subindex, e);
-          goto error;
+            log_error("failed to fill index 0x%X subindex 0x%X at entry %d", data.index, data.subindex, e);
+            goto error;
         }
     }
 
@@ -273,7 +272,7 @@ void od_conf_free(OD_t *od, bool extend_internal_od) {
     OD_obj_array_t *arr;
     OD_obj_record_t *rec;
     OD_obj_record_t *rec_var = NULL;
-    for (int i=0; od->list[i].index != 0; i++) {
+    for (int i = 0; od->list[i].index != 0; i++) {
         entry = &od->list[i];
         if ((entry == NULL) || (entry->odObject == NULL) || (entry->index == 0)) {
             continue;
@@ -281,7 +280,7 @@ void od_conf_free(OD_t *od, bool extend_internal_od) {
 
         if (extend_internal_od) {
             bool internal = false;
-            for (int j=0; OD->list[j].index != 0; j++) {
+            for (int j = 0; OD->list[j].index != 0; j++) {
                 if (entry->index == OD->list[j].index) {
                     internal = true;
                     break;
@@ -310,7 +309,7 @@ void od_conf_free(OD_t *od, bool extend_internal_od) {
             if (rec == NULL) {
                 continue;
             }
-            for (int j=0; j<entry->subEntriesCount; j++) {
+            for (int j = 0; j < entry->subEntriesCount; j++) {
                 rec_var = &rec[j];
                 if (rec_var != NULL) {
                     free(rec_var->dataOrig);
@@ -389,7 +388,8 @@ static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data) {
         entry->subEntriesCount = data->total_subindexes;
         entry->odObject = rec;
     } else {
-        log_error("invalid object type for index 0x%X subindex 0x%X in dcf: %d", data->index, data->subindex, data->object_type);
+        log_error("invalid object type for index 0x%X subindex 0x%X in dcf: %d", data->index, data->subindex,
+                  data->object_type);
         return -1;
     }
 
@@ -412,51 +412,49 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
             }
         } else {
             switch (data->data_type) {
-                case OCTET_STRING:
-                case VISIBLE_STRING:
-                {
-                    // arr->dataOrig is an array of pointers to char/uint8_t arrays
-                    if (arr->dataOrig == NULL) {
-                        arr->dataOrig = malloc(sizeof(uint8_t *) * (entry->subEntriesCount - 1)); // don't include sub0
-                    }
-                    uint8_t **tmp = (uint8_t **)arr->dataOrig;
-                    r = fill_var(data, (void **)&tmp[sub_offset], &arr->dataElementSizeof, &arr->attribute);
-                    if (r < 0) {
-                        log_error("invalid octet/visible string var to fill in array");
-                        goto error_fill;
-                    }
-                    break;
+            case OCTET_STRING:
+            case VISIBLE_STRING: {
+                // arr->dataOrig is an array of pointers to char/uint8_t arrays
+                if (arr->dataOrig == NULL) {
+                    arr->dataOrig = malloc(sizeof(uint8_t *) * (entry->subEntriesCount - 1)); // don't include sub0
                 }
-                case DOMAIN:
-                    // arr->dataOrig is an array of NULL void pointers
-                    if (arr->dataOrig == NULL) {
-                        size_t size = sizeof(void *) * (entry->subEntriesCount - 1);
-                        arr->dataOrig = malloc(size);
-                        memset(arr->dataOrig, 0,  size);
-                    }
-                    arr->attribute = get_access_attr(data->access_type) | ODA_MB;
-                    break;
-                default:
-                {
-                    // arr->dataOrig is an array of a non-string/domain data type
-                    void *tmp = NULL;
-                    r = fill_var(data, (void **)&tmp, &arr->dataElementSizeof, &arr->attribute);
-                    if (r < 0) {
-                        log_error("invalid non-string/domain var to fill in array");
-                        goto error_fill;
-                    }
-                    if (arr->dataOrig == NULL) {
-                        arr->dataOrig = malloc((entry->subEntriesCount - 1) * arr->dataElementSizeof);
-                    }
+                uint8_t **tmp = (uint8_t **)arr->dataOrig;
+                r = fill_var(data, (void **)&tmp[sub_offset], &arr->dataElementSizeof, &arr->attribute);
+                if (r < 0) {
+                    log_error("invalid octet/visible string var to fill in array");
+                    goto error_fill;
+                }
+                break;
+            }
+            case DOMAIN:
+                // arr->dataOrig is an array of NULL void pointers
+                if (arr->dataOrig == NULL) {
+                    size_t size = sizeof(void *) * (entry->subEntriesCount - 1);
+                    arr->dataOrig = malloc(size);
+                    memset(arr->dataOrig, 0, size);
+                }
+                arr->attribute = get_access_attr(data->access_type) | ODA_MB;
+                break;
+            default: {
+                // arr->dataOrig is an array of a non-string/domain data type
+                void *tmp = NULL;
+                r = fill_var(data, (void **)&tmp, &arr->dataElementSizeof, &arr->attribute);
+                if (r < 0) {
+                    log_error("invalid non-string/domain var to fill in array");
+                    goto error_fill;
+                }
+                if (arr->dataOrig == NULL) {
+                    arr->dataOrig = malloc((entry->subEntriesCount - 1) * arr->dataElementSizeof);
+                }
 
-                    uint8_t *ptr = arr->dataOrig;
-                    uint8_t offset = arr->dataElementSizeof * sub_offset;
-                    memcpy(&ptr[offset], tmp, arr->dataElementSizeof);
-                    if (tmp) {
-                        free(tmp);
-                    }
-                    break;
+                uint8_t *ptr = arr->dataOrig;
+                uint8_t offset = arr->dataElementSizeof * sub_offset;
+                memcpy(&ptr[offset], tmp, arr->dataElementSizeof);
+                if (tmp) {
+                    free(tmp);
                 }
+                break;
+            }
             }
             arr->dataElementLength = arr->dataElementSizeof;
         }
@@ -612,7 +610,7 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
         return -1;
     }
 
-    if (!((data->data_type == DOMAIN) || (data->data_type == OCTET_STRING) || (data->data_type == VISIBLE_STRING ))) {
+    if (!((data->data_type == DOMAIN) || (data->data_type == OCTET_STRING) || (data->data_type == VISIBLE_STRING))) {
         // no default
         if (strlen(data->default_value) == 0) {
             *value = malloc(length);
@@ -626,7 +624,7 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
         }
     }
 
-    if (value_length != NULL ) {
+    if (value_length != NULL) {
         *value_length = length;
     }
 
@@ -641,8 +639,7 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
 
 static uint8_t get_access_attr(char *access_type) {
     uint8_t attr;
-    if (!strncpy(access_type, "ro", strlen(access_type)) ||
-        !strncpy(access_type, "const", strlen(access_type))) {
+    if (!strncpy(access_type, "ro", strlen(access_type)) || !strncpy(access_type, "const", strlen(access_type))) {
         attr = ODA_SDO_R;
     } else if (!strncpy(access_type, "wo", strlen(access_type))) {
         attr = ODA_SDO_W;

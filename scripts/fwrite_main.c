@@ -1,15 +1,15 @@
-#include <libgen.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
 #include "CANopen.h"
-#include "system.h"
 #include "file_transfer_ext.h"
-#include "sdo_client_node.h"
 #include "parse_int.h"
 #include "sdo_client.h"
+#include "sdo_client_node.h"
+#include "system.h"
+#include <libgen.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 extern CO_t *CO;
 
@@ -17,7 +17,7 @@ static void usage(char *name) {
     printf("%s <interface> <node-id> <src> <optional-dest>\n", name);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if ((argc != 4) && (argc != 5)) {
         printf("invalid number of args\n\n");
         usage(argv[0]);
@@ -49,7 +49,8 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    CO_SDO_abortCode_t abort_code = sdo_write_str(CO->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, file);
+    CO_SDO_abortCode_t abort_code =
+        sdo_write_str(CO->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, file);
     if (abort_code != 0) {
         goto abort;
     }

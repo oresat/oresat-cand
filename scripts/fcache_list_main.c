@@ -1,15 +1,15 @@
+#include "CANopen.h"
+#include "file_transfer_ext.h"
+#include "parse_int.h"
+#include "sdo_client.h"
+#include "sdo_client_node.h"
 #include <libgen.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "CANopen.h"
-#include "file_transfer_ext.h"
-#include "sdo_client_node.h"
-#include "parse_int.h"
-#include "sdo_client.h"
 
 extern CO_t *CO;
 
@@ -19,7 +19,7 @@ static void usage(char *name) {
     printf("caches: fread or fwrite\n");
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc != 4) {
         printf("invalid number of args\n\n");
         usage(argv[0]);
@@ -40,9 +40,9 @@ int main(int argc, char* argv[]) {
     }
 
     int index;
-    if (!strncmp(argv[3], "fread", strlen(argv[3])+1)) {
+    if (!strncmp(argv[3], "fread", strlen(argv[3]) + 1)) {
         index = FREAD_CACHE_INDEX;
-    } else if (!strncmp(argv[3], "fwrite", strlen(argv[3])+1)) {
+    } else if (!strncmp(argv[3], "fwrite", strlen(argv[3]) + 1)) {
         index = FWRITE_CACHE_INDEX;
     } else {
         printf("invalid cache, must be fread or fwrite\n");
@@ -50,7 +50,8 @@ int main(int argc, char* argv[]) {
     }
 
     char *buf = NULL;
-    CO_SDO_abortCode_t abort_code = sdo_read_str(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, &buf, false);
+    CO_SDO_abortCode_t abort_code =
+        sdo_read_str(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, &buf, false);
     if (abort_code != 0) {
         goto abort;
     } else if (!buf) {

@@ -3,10 +3,10 @@
 
 #include "301/CO_ODinterface.h"
 
-#define OS_CMD_INDEX 0x1023
+#define OS_CMD_INDEX            0x1023
 #define OS_CMD_SUBINDEX_COMMAND 0x1
-#define OS_CMD_SUBINDEX_STATUS 0x2
-#define OS_CMD_SUBINDEX_REPLY 0x3
+#define OS_CMD_SUBINDEX_STATUS  0x2
+#define OS_CMD_SUBINDEX_REPLY   0x3
 
 /** OS command status values defined by CiA 301 */
 typedef enum {

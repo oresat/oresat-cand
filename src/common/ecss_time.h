@@ -12,7 +12,7 @@ typedef union {
     uint64_t raw;
     struct {
         uint32_t coarse : 32; // seconds
-        uint32_t fine   : 24; // sub-seconds
+        uint32_t fine : 24;   // sub-seconds
     };
 } ecss_scet_t;
 
@@ -20,8 +20,8 @@ typedef union {
     uint64_t raw;
     struct {
         uint16_t day : 16;
-        uint32_t ms  : 32;
-        uint16_t us  : 16;
+        uint32_t ms : 32;
+        uint16_t us : 16;
     };
 } ecss_utc_t;
 

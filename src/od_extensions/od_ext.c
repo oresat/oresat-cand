@@ -1,17 +1,18 @@
-#include <stdint.h>
-#include <string.h>
+#include "od_ext.h"
 #include "301/CO_ODinterface.h"
 #include "logger.h"
-#include "od_ext.h"
+#include <stdint.h>
+#include <string.h>
 
-ODR_t od_ext_read_data(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead, void *data, size_t dataLen) {
+ODR_t od_ext_read_data(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead, void *data,
+                       size_t dataLen) {
     if ((stream == NULL) || (buf == NULL) || (countRead == NULL)) {
         log_error("null arg error");
         return ODR_DEV_INCOMPAT;
     }
 
     OD_size_t dataLenToCopy = dataLen;
-    const uint8_t* dataOrig = (uint8_t *)data;
+    const uint8_t *dataOrig = (uint8_t *)data;
 
     if (dataOrig == NULL) {
         log_error("read buffer was NULL");
@@ -46,13 +47,14 @@ ODR_t od_ext_read_data(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_
         }
     }
 
-    (void)memcpy((void*)buf, (const void*)dataOrig, dataLenToCopy);
+    (void)memcpy((void *)buf, (const void *)dataOrig, dataLenToCopy);
 
     *countRead = dataLenToCopy;
     return returnCode;
 }
 
-ODR_t od_ext_write_data(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten, void *data, size_t dataMaxLen, size_t *dataWritten) {
+ODR_t od_ext_write_data(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten, void *data,
+                        size_t dataMaxLen, size_t *dataWritten) {
     if ((stream == NULL) || (buf == NULL) || (countWritten == NULL)) {
         log_error("null arg error");
         return ODR_DEV_INCOMPAT;
@@ -65,7 +67,7 @@ ODR_t od_ext_write_data(OD_stream_t* stream, const void* buf, OD_size_t count, O
 
     OD_size_t dataLenToCopy = stream->dataLength; /* length of OD variable */
     OD_size_t dataLenRemain = dataLenToCopy;      /* remaining length of dataOrig buffer */
-    uint8_t* dataOrig = (uint8_t *)data;
+    uint8_t *dataOrig = (uint8_t *)data;
 
     if (dataOrig == NULL) {
         log_error("write buffer was NULL");
@@ -105,7 +107,7 @@ ODR_t od_ext_write_data(OD_stream_t* stream, const void* buf, OD_size_t count, O
 
     /* additional check for Misra c compliance */
     if ((dataLenToCopy <= dataLenRemain) && (dataLenToCopy <= count)) {
-        (void)memcpy((void*)dataOrig, (const void*)buf, dataLenToCopy);
+        (void)memcpy((void *)dataOrig, (const void *)buf, dataLenToCopy);
     } else {
         log_debug("size error");
         return ODR_DEV_INCOMPAT;
@@ -119,7 +121,8 @@ ODR_t od_ext_write_data(OD_stream_t* stream, const void* buf, OD_size_t count, O
     return returnCode;
 }
 
-ODR_t od_ext_read_file(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_t* countRead, const char *file_path,  FILE **fp) {
+ODR_t od_ext_read_file(OD_stream_t *stream, void *buf, OD_size_t count, OD_size_t *countRead, const char *file_path,
+                       FILE **fp) {
     if (!stream || !buf || !countRead || !file_path || !file_path) {
         log_error("null arg error");
         return ODR_DEV_INCOMPAT;
@@ -186,7 +189,8 @@ ODR_t od_ext_read_file(OD_stream_t* stream, void* buf, OD_size_t count, OD_size_
     return returnCode;
 }
 
-ODR_t od_ext_write_file(OD_stream_t* stream, const void* buf, OD_size_t count, OD_size_t* countWritten, const char *file_path, FILE **fp) {
+ODR_t od_ext_write_file(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten,
+                        const char *file_path, FILE **fp) {
     if (!stream || !buf || !countWritten || !file_path || !fp) {
         log_error("null arg error");
         return ODR_DEV_INCOMPAT;

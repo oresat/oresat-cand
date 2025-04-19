@@ -1,48 +1,20 @@
+#include "sdo_client.h"
+#include "CO_SDOserver.h"
+#include "system.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "system.h"
-#include "CO_SDOserver.h"
-#include "sdo_client.h"
 
 #define SDO_TIMEOUT_MS 1000
 
 uint32_t ABORT_CODES[] = {
-    0x00000000UL,
-    0x05030000UL,
-    0x05040000UL,
-    0x05040001UL,
-    0x05040002UL,
-    0x05040003UL,
-    0x05040004UL,
-    0x05040005UL,
-    0x06010000UL,
-    0x06010001UL,
-    0x06010002UL,
-    0x06020000UL,
-    0x06040041UL,
-    0x06040042UL,
-    0x06040043UL,
-    0x06040047UL,
-    0x06060000UL,
-    0x06070010UL,
-    0x06070012UL,
-    0x06070013UL,
-    0x06090011UL,
-    0x06090030UL,
-    0x06090031UL,
-    0x06090032UL,
-    0x06090036UL,
-    0x060A0023UL,
-    0x08000000UL,
-    0x08000020UL,
-    0x08000021UL,
-    0x08000022UL,
-    0x08000023UL,
-    0x08000024UL,
+    0x00000000UL, 0x05030000UL, 0x05040000UL, 0x05040001UL, 0x05040002UL, 0x05040003UL, 0x05040004UL, 0x05040005UL,
+    0x06010000UL, 0x06010001UL, 0x06010002UL, 0x06020000UL, 0x06040041UL, 0x06040042UL, 0x06040043UL, 0x06040047UL,
+    0x06060000UL, 0x06070010UL, 0x06070012UL, 0x06070013UL, 0x06090011UL, 0x06090030UL, 0x06090031UL, 0x06090032UL,
+    0x06090036UL, 0x060A0023UL, 0x08000000UL, 0x08000020UL, 0x08000021UL, 0x08000022UL, 0x08000023UL, 0x08000024UL,
 };
-#define ABORT_CODES_LEN (sizeof(ABORT_CODES)/sizeof(ABORT_CODES[0]))
+#define ABORT_CODES_LEN (sizeof(ABORT_CODES) / sizeof(ABORT_CODES[0]))
 
 char *ABORT_CODES_STR[] = {
     "No abort",
@@ -79,9 +51,9 @@ char *ABORT_CODES_STR[] = {
     "No buf available",
 };
 
-char* get_sdo_abort_string(uint32_t code) {
+char *get_sdo_abort_string(uint32_t code) {
     char *r = NULL;
-    for (int i=0; i<(int)ABORT_CODES_LEN; i++) {
+    for (int i = 0; i < (int)ABORT_CODES_LEN; i++) {
         if (code == ABORT_CODES[i]) {
             r = ABORT_CODES_STR[i];
         }
@@ -89,8 +61,8 @@ char* get_sdo_abort_string(uint32_t code) {
     return r;
 }
 
-CO_SDO_abortCode_t
-sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void **buf, size_t *buf_size, bool block_transfer) {
+CO_SDO_abortCode_t sdo_read_dynamic(CO_SDOclient_t *client, uint8_t node_id, uint16_t index, uint8_t subindex,
+                                    void **buf, size_t *buf_size, bool block_transfer) {
     CO_SDO_return_t ret;
 
     ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
@@ -139,8 +111,8 @@ sdo_read_dynamic(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
     return CO_SDO_AB_NONE;
 }
 
-CO_SDO_abortCode_t
-sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void* buf, size_t buf_size, size_t* read_size) {
+CO_SDO_abortCode_t sdo_read(CO_SDOclient_t *client, uint8_t node_id, uint16_t index, uint8_t subindex, void *buf,
+                            size_t buf_size, size_t *read_size) {
     CO_SDO_return_t ret;
     uint8_t *data = (uint8_t *)buf;
 
@@ -178,8 +150,8 @@ sdo_read(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subind
     return CO_SDO_AB_NONE;
 }
 
-CO_SDO_abortCode_t
-sdo_write(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, void* buf, size_t buf_size) {
+CO_SDO_abortCode_t sdo_write(CO_SDOclient_t *client, uint8_t node_id, uint16_t index, uint8_t subindex, void *buf,
+                             size_t buf_size) {
     CO_SDO_return_t ret;
     uint8_t *data = (uint8_t *)buf;
 
@@ -215,8 +187,8 @@ sdo_write(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subin
     return CO_SDO_AB_NONE;
 }
 
-CO_SDO_abortCode_t
-sdo_read_to_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, char *file_path) {
+CO_SDO_abortCode_t sdo_read_to_file(CO_SDOclient_t *client, uint8_t node_id, uint16_t index, uint8_t subindex,
+                                    char *file_path) {
     CO_SDO_return_t ret;
 
     ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
@@ -259,8 +231,8 @@ sdo_read_to_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_
     return CO_SDO_AB_NONE;
 }
 
-CO_SDO_abortCode_t
-sdo_write_from_file(CO_SDOclient_t* client, uint8_t node_id, uint16_t index, uint8_t subindex, char *file_path) {
+CO_SDO_abortCode_t sdo_write_from_file(CO_SDOclient_t *client, uint8_t node_id, uint16_t index, uint8_t subindex,
+                                       char *file_path) {
     CO_SDO_return_t ret;
 
     ret = CO_SDOclient_setup(client, CO_CAN_ID_SDO_CLI + node_id, CO_CAN_ID_SDO_SRV + node_id, node_id);
