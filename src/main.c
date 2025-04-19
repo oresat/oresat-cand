@@ -183,6 +183,10 @@ main(int argc, char* argv[]) {
         CANdevice = argv[optind];
         CANptr.can_ifindex = if_nametoindex(CANdevice);
     }
+    if (CANdevice == NULL) {
+        log_critical("no CAN interface arg");
+        exit(EXIT_FAILURE);
+    }
 
     if (rtPriority != -1
         && (rtPriority < sched_get_priority_min(SCHED_FIFO) || rtPriority > sched_get_priority_max(SCHED_FIFO))) {
@@ -191,12 +195,20 @@ main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (CANptr.can_ifindex == 0) {
-        log_printf(LOG_CRIT, DBG_NO_CAN_DEVICE, CANdevice);
-        exit(EXIT_FAILURE);
-    }
-
     log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
+
+    bool first_interface_check = true;
+    do {
+        CANptr.can_ifindex = if_nametoindex(CANdevice);
+        if ((first_interface_check) && (CANptr.can_ifindex == 0)) {
+            log_critical("can't find CAN interface %s", CANdevice);
+            first_interface_check = false;
+        }
+        sleep_ms(250);
+    } while (CANptr.can_ifindex == 0);
+    if (!first_interface_check) {
+        log_info("found CAN interface %s", CANdevice);
+    }
 
     if (dcf_path[0] != '\0') {
         if (od_conf_load(dcf_path, &od, !network_manager_node) < 0) {
