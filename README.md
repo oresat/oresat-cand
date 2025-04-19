@@ -63,3 +63,18 @@ Run with the generated conf.
 
 **Note:** If the conf fails to load for any reason, the internal OD will still
 be used.
+
+## Build Debian package
+
+Install dependencies
+
+```bash
+sudo apt install debhelper build-essential dh-make
+
+```
+
+Build deb package
+
+```bash
+./makedeb.sh
+```

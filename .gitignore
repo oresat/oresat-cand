@@ -19,5 +19,4 @@ debian/debhelper-build-stamp
 debian/files
 debian/oresat-canopend.substvars
 debian/oresat-canopend/
-makedeb.sh
 *.deb
