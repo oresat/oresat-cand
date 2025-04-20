@@ -17,6 +17,6 @@ debian/.debhelper/
 debian/changelog
 debian/debhelper-build-stamp
 debian/files
-debian/oresat-canopend.substvars
-debian/oresat-canopend/
+debian/*.substvars
+debian/oresat-canopend*/
 *.deb

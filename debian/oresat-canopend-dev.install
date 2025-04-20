@@ -1,0 +1,6 @@
+*/oresat-fcache-list /usr/bin
+*/oresat-fread /usr/bin
+*/oresat-fwrite /usr/bin
+*/oresat-os-command /usr/bin
+*/oresat-sdo-read /usr/bin
+*/oresat-sdo-write /usr/bin
