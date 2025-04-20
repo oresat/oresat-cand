@@ -1,5 +1,6 @@
 #include "file_transfer_ext.h"
 #include "301/CO_ODinterface.h"
+#include "OD.h"
 #include "fcache.h"
 #include "logger.h"
 #include "od_ext.h"
@@ -44,7 +45,7 @@ static OD_extension_t fwrite_ext = {
 void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwrite_cache) {
     OD_entry_t *entry;
 
-    entry = OD_find(od, FREAD_CACHE_INDEX);
+    entry = OD_find(od, OD_INDEX_FREAD_CACHE);
     if (entry != NULL) {
         file_transfer_data_t *fread_data = malloc(sizeof(file_transfer_data_t));
         if (fread_data != NULL) {
@@ -61,10 +62,10 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
         fread_ext.object = fread_data;
         OD_extension_init(entry, &fread_ext);
     } else {
-        log_critical("could not find fread cache enty 0x(%X)", FREAD_CACHE_INDEX);
+        log_critical("could not find fread cache enty 0x(%X)", OD_INDEX_FREAD_CACHE);
     }
 
-    entry = OD_find(od, FWRITE_CACHE_INDEX);
+    entry = OD_find(od, OD_INDEX_FWRITE_CACHE);
     if (entry != NULL) {
         file_transfer_data_t *fwrite_data = malloc(sizeof(file_transfer_data_t));
         if (fwrite_data != NULL) {
@@ -81,7 +82,7 @@ void file_transfer_extension_init(OD_t *od, fcache_t *fread_cache, fcache_t *fwr
         fwrite_ext.object = fwrite_data;
         OD_extension_init(entry, &fwrite_ext);
     } else {
-        log_critical("could not find fwrite cache enty 0x(%X)", FWRITE_CACHE_INDEX);
+        log_critical("could not find fwrite cache enty 0x(%X)", OD_INDEX_FWRITE_CACHE);
     }
 }
 
@@ -126,13 +127,13 @@ static ODR_t file_transfer_read(OD_stream_t *stream, void *buf, OD_size_t count,
     case 0:
         r = OD_readOriginal(stream, buf, count, countRead);
         break;
-    case FILE_TRANSFER_SUBINDEX_LENGTH: {
+    case OD_SUBINDEX_FREAD_CACHE_LENGTH: {
         uint8_t size = MIN(fcache_size(fdata->cache), 0xFF);
         *countRead = sizeof(size);
         memcpy(buf, &size, *countRead);
         break;
     }
-    case FILE_TRANSFER_SUBINDEX_FILES: {
+    case OD_SUBINDEX_FREAD_CACHE_FILES_JSON: {
         if ((stream->dataOffset == 0) && (fdata->files != NULL)) {
             free(fdata->files);
         }
@@ -142,10 +143,10 @@ static ODR_t file_transfer_read(OD_stream_t *stream, void *buf, OD_size_t count,
         }
         break;
     }
-    case FILE_TRANSFER_SUBINDEX_NAME:
+    case OD_SUBINDEX_FREAD_CACHE_FILE_NAME:
         r = od_ext_read_data(stream, buf, count, countRead, fdata->raw, strlen(fdata->raw) + 1);
         break;
-    case FILE_TRANSFER_SUBINDEX_DATA:
+    case OD_SUBINDEX_FREAD_CACHE_FILE_DATA:
         if (fdata->file_name[0] == '\0') {
             log_error("%s cache file name subindex must be set first", fdata->name);
             r = ODR_NO_DATA;
@@ -187,7 +188,7 @@ static ODR_t file_transfer_write(OD_stream_t *stream, const void *buf, OD_size_t
 
     ODR_t r = ODR_OK;
     switch (stream->subIndex) {
-    case FILE_TRANSFER_SUBINDEX_NAME: {
+    case OD_SUBINDEX_FREAD_CACHE_FILE_NAME: {
         size_t dataWritten = 0;
         r = od_ext_write_data(stream, buf, count, countWritten, fdata->raw, PATH_LEN - 1, &dataWritten);
         if (r == ODR_OK) {
@@ -201,7 +202,7 @@ static ODR_t file_transfer_write(OD_stream_t *stream, const void *buf, OD_size_t
         }
         break;
     }
-    case FILE_TRANSFER_SUBINDEX_DATA:
+    case OD_SUBINDEX_FREAD_CACHE_FILE_DATA:
         if (fdata->file_name[0] == '\0') {
             log_error("%s cache file name subindex must be set first", fdata->name);
             return ODR_NO_DATA; // file name must be set first
@@ -227,7 +228,7 @@ static ODR_t file_transfer_write(OD_stream_t *stream, const void *buf, OD_size_t
             }
         }
         break;
-    case FILE_TRANSFER_SUBINDEX_DELETE:
+    case OD_SUBINDEX_FREAD_CACHE_REMOVE:
         if ((bool *)buf && (fdata->file_name[0] != '\0')) {
             fcache_delete(fdata->cache, fdata->file_name);
             remove(fdata->tmp_file_path);

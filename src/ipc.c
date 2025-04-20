@@ -2,8 +2,8 @@
 #include "CANopen.h"
 #include "CO_ODinterface.h"
 #include "CO_SDOserver.h"
+#include "OD.h"
 #include "fcache.h"
-#include "file_transfer_ext.h"
 #include "logger.h"
 #include "sdo_client.h"
 #include <pthread.h>
@@ -253,8 +253,8 @@ void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fr
 
         if ((ac != 0) && (co->SDOclient)) {
 
-            ac =
-                sdo_write_str(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, remote_file_path);
+            ac = sdo_write_str(co->SDOclient, node_id, OD_INDEX_FREAD_CACHE, OD_SUBINDEX_FREAD_CACHE_FILE_NAME,
+                               remote_file_path);
         }
 
         if (ac != 0) {
@@ -267,7 +267,7 @@ void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fr
         }
 
         if ((ac != 0) && (co->SDOclient)) {
-            ac = sdo_read_to_file(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA,
+            ac = sdo_read_to_file(co->SDOclient, node_id, OD_INDEX_FREAD_CACHE, OD_SUBINDEX_FREAD_CACHE_FILE_DATA,
                                   local_file_path);
         }
 
@@ -308,12 +308,12 @@ void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fr
 
         if ((ac != 0) && (co->SDOclient)) {
 
-            ac = sdo_write_str(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME,
+            ac = sdo_write_str(co->SDOclient, node_id, OD_INDEX_FWRITE_CACHE, OD_SUBINDEX_FREAD_CACHE_FILE_NAME,
                                remote_file_path);
         }
 
         if ((ac != 0) && (co->SDOclient)) {
-            ac = sdo_write_from_file(co->SDOclient, node_id, FWRITE_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA,
+            ac = sdo_write_from_file(co->SDOclient, node_id, OD_INDEX_FWRITE_CACHE, OD_SUBINDEX_FREAD_CACHE_FILE_DATA,
                                      local_file_path);
         }
 
@@ -334,8 +334,8 @@ void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fr
         size_t data_len = 0;
         CO_SDO_abortCode_t ac = -1;
         if (co->SDOclient) {
-            ac = sdo_read_dynamic(co->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_FILES, &data,
-                                  &data_len, false);
+            ac = sdo_read_dynamic(co->SDOclient, node_id, OD_INDEX_FREAD_CACHE, OD_SUBINDEX_FREAD_CACHE_FILES_JSON,
+                                  &data, &data_len, false);
         }
         if (ac == 0) {
             if (data == NULL) {

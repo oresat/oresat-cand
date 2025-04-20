@@ -1,5 +1,5 @@
 #include "CANopen.h"
-#include "file_transfer_ext.h"
+#include "OD.h"
 #include "parse_int.h"
 #include "sdo_client.h"
 #include "sdo_client_node.h"
@@ -41,9 +41,9 @@ int main(int argc, char *argv[]) {
 
     int index;
     if (!strncmp(argv[3], "fread", strlen(argv[3]) + 1)) {
-        index = FREAD_CACHE_INDEX;
+        index = OD_INDEX_FREAD_CACHE;
     } else if (!strncmp(argv[3], "fwrite", strlen(argv[3]) + 1)) {
-        index = FWRITE_CACHE_INDEX;
+        index = OD_INDEX_FWRITE_CACHE;
     } else {
         printf("invalid cache, must be fread or fwrite\n");
         return EXIT_FAILURE;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
 
     char *buf = NULL;
     CO_SDO_abortCode_t abort_code =
-        sdo_read_str(CO->SDOclient, node_id, index, FILE_TRANSFER_SUBINDEX_FILES, &buf, false);
+        sdo_read_str(CO->SDOclient, node_id, index, OD_SUBINDEX_FREAD_CACHE_FILES_JSON, &buf, false);
     if (abort_code != 0) {
         goto abort;
     } else if (!buf) {

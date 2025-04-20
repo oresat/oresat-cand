@@ -1,5 +1,6 @@
 #include "os_command_ext.h"
 #include "301/CO_ODinterface.h"
+#include "OD.h"
 #include "logger.h"
 #include "od_ext.h"
 #include "system.h"
@@ -16,7 +17,7 @@
 
 static bool running;
 static pthread_t thread_id;
-static uint8_t status = OS_CMD_ERROR_NO_REPLY;
+static uint8_t status = OS_COMMAND_STATUS_ERROR_NO_REPLY;
 static char command[COMMAND_BUFFER_LEN] = {0};
 static char reply[REPLY_BUFFER_LEN] = {0};
 
@@ -31,12 +32,12 @@ static OD_extension_t ext = {
 };
 
 void os_command_extension_init(OD_t *od) {
-    OD_entry_t *entry = OD_find(od, OS_CMD_INDEX);
+    OD_entry_t *entry = OD_find(od, OD_INDEX_OS_COMMAND);
     if (entry != NULL) {
         OD_extension_init(entry, &ext);
         pthread_create(&thread_id, NULL, os_command_thread, NULL);
     } else {
-        log_critical("could not find os command enty 0x(%X)", OS_CMD_INDEX);
+        log_critical("could not find os command enty 0x(%X)", OD_INDEX_OS_COMMAND);
     }
 }
 
@@ -57,24 +58,24 @@ static void *os_command_thread(void *arg) {
 
     while (running) {
         sleep_ms(250);
-        if (status != OS_CMD_EXECUTING) {
-            continue; // nothing todo
+        if (status != OS_COMMAND_STATUS_EXECUTING) {
+            continue; // nothing to-do
         }
 
         if (strlen(command) == 0) {
-            status = OS_CMD_ERROR_NO_REPLY;
+            status = OS_COMMAND_STATUS_ERROR_NO_REPLY;
         } else {
             strncpy(message, command, MIN(strlen(command) + 1, log_size - 4));
             log_info("running os command: %s", message);
             int reply_len = run_bash_command(command, reply, REPLY_BUFFER_LEN);
             if (reply_len < 0) {
                 reply[0] = '\0';
-                status = OS_CMD_ERROR_NO_REPLY;
+                status = OS_COMMAND_STATUS_ERROR_NO_REPLY;
             } else if (reply_len == 0) {
                 reply[0] = '\0';
-                status = OS_CMD_NO_ERROR_NO_REPLY;
+                status = OS_COMMAND_STATUS_NO_ERROR_NO_REPLY;
             } else {
-                status = OS_CMD_NO_ERROR_REPLY;
+                status = OS_COMMAND_STATUS_NO_ERROR_REPLY;
                 reply[reply_len - 1] = '\0';
             }
         }
@@ -86,12 +87,12 @@ static ODR_t os_command_read(OD_stream_t *stream, void *buf, OD_size_t count, OD
     ODR_t r = ODR_OK;
     if (stream->subIndex == 0) {
         r = OD_readOriginal(stream, buf, count, countRead);
-    } else if (stream->subIndex == OS_CMD_SUBINDEX_COMMAND) {
+    } else if (stream->subIndex == OD_SUBINDEX_OS_COMMAND_COMMAND) {
         r = od_ext_read_data(stream, buf, count, countRead, command, strlen(command) + 1);
-    } else if (stream->subIndex == OS_CMD_SUBINDEX_STATUS) {
+    } else if (stream->subIndex == OD_SUBINDEX_OS_COMMAND_STATUS) {
         memcpy(buf, &status, 1);
         *countRead = 1;
-    } else if (stream->subIndex == OS_CMD_SUBINDEX_REPLY) {
+    } else if (stream->subIndex == OD_SUBINDEX_OS_COMMAND_REPLY) {
         if (reply[0] == '\0') {
             r = ODR_NO_DATA;
         } else {
@@ -103,8 +104,8 @@ static ODR_t os_command_read(OD_stream_t *stream, void *buf, OD_size_t count, OD
 
 static ODR_t os_command_write(OD_stream_t *stream, const void *buf, OD_size_t count, OD_size_t *countWritten) {
     ODR_t r = ODR_READONLY;
-    if (stream->subIndex == OS_CMD_SUBINDEX_COMMAND) {
-        if (status == OS_CMD_EXECUTING) {
+    if (stream->subIndex == OD_SUBINDEX_OS_COMMAND_COMMAND) {
+        if (status == OS_COMMAND_STATUS_EXECUTING) {
             return ODR_DATA_LOC_CTRL;
         }
         size_t command_len = 0;
@@ -112,7 +113,7 @@ static ODR_t os_command_write(OD_stream_t *stream, const void *buf, OD_size_t co
         if (r == ODR_OK) {
             command[command_len] = '\0';
             command_len++;
-            status = OS_CMD_EXECUTING;
+            status = OS_COMMAND_STATUS_EXECUTING;
         }
     }
     return r;

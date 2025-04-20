@@ -1,5 +1,5 @@
 #include "CANopen.h"
-#include "os_command_ext.h"
+#include "OD.h"
 #include "parse_int.h"
 #include "sdo_client.h"
 #include "sdo_client_node.h"
@@ -38,23 +38,25 @@ int main(int argc, char *argv[]) {
     }
 
     CO_SDO_abortCode_t abort_code =
-        sdo_write_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_COMMAND, argv[3]);
+        sdo_write_str(CO->SDOclient, node_id, OD_INDEX_OS_COMMAND, OD_SUBINDEX_OS_COMMAND_COMMAND, argv[3]);
     if (abort_code != 0) {
         goto abort;
     }
 
-    uint8_t status = OS_CMD_EXECUTING;
-    while (status == OS_CMD_EXECUTING) {
+    uint8_t status = OS_COMMAND_STATUS_EXECUTING;
+    while (status == OS_COMMAND_STATUS_EXECUTING) {
         sleep_ms(250);
-        abort_code = sdo_read_uint8(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_STATUS, &status);
+        abort_code =
+            sdo_read_uint8(CO->SDOclient, node_id, OD_INDEX_OS_COMMAND, OD_SUBINDEX_OS_COMMAND_STATUS, &status);
         if (abort_code != 0) {
             goto abort;
         }
     }
 
-    if ((status == OS_CMD_NO_ERROR_REPLY) || (status == OS_CMD_ERROR_REPLY)) {
+    if ((status == OS_COMMAND_STATUS_NO_ERROR_REPLY) || (status == OS_COMMAND_STATUS_ERROR_REPLY)) {
         char *reply = NULL;
-        abort_code = sdo_read_str(CO->SDOclient, node_id, OS_CMD_INDEX, OS_CMD_SUBINDEX_REPLY, &reply, true);
+        abort_code =
+            sdo_read_str(CO->SDOclient, node_id, OD_INDEX_OS_COMMAND, OD_SUBINDEX_OS_COMMAND_REPLY, &reply, true);
         if (abort_code != 0) {
             goto abort;
         }

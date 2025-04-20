@@ -1,5 +1,5 @@
 #include "CANopen.h"
-#include "file_transfer_ext.h"
+#include "OD.h"
 #include "parse_int.h"
 #include "sdo_client.h"
 #include "sdo_client_node.h"
@@ -37,12 +37,13 @@ int main(int argc, char *argv[]) {
     }
 
     CO_SDO_abortCode_t abort_code =
-        sdo_write_str(CO->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_NAME, argv[3]);
+        sdo_write_str(CO->SDOclient, node_id, OD_INDEX_FREAD_CACHE, OD_SUBINDEX_FREAD_CACHE_FILE_NAME, argv[3]);
     if (abort_code != 0) {
         goto abort;
     }
 
-    abort_code = sdo_read_to_file(CO->SDOclient, node_id, FREAD_CACHE_INDEX, FILE_TRANSFER_SUBINDEX_DATA, argv[3]);
+    abort_code =
+        sdo_read_to_file(CO->SDOclient, node_id, OD_INDEX_FREAD_CACHE, OD_SUBINDEX_FREAD_CACHE_FILE_DATA, argv[3]);
     if (abort_code != 0) {
         goto abort;
     }

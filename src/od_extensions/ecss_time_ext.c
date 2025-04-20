@@ -1,5 +1,6 @@
 #include "ecss_time_ext.h"
 #include "301/CO_ODinterface.h"
+#include "OD.h"
 #include "ecss_time.h"
 #include "logger.h"
 
@@ -54,9 +55,9 @@ static OD_extension_t utc_ext = {
 void ecss_time_extension_init(OD_t *od) {
     OD_entry_t *entry;
 
-    entry = OD_find(od, 0x2010);
+    entry = OD_find(od, OD_INDEX_SCET);
     OD_extension_init(entry, &scet_ext);
 
-    entry = OD_find(od, 0x2011);
+    entry = OD_find(od, OD_INDEX_UTC);
     OD_extension_init(entry, &utc_ext);
 }
