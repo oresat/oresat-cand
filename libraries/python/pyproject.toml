@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "oresat-libcanopend"
+name = "oresat-canopend"
 description = "library to interface to oresat-canopend"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -26,7 +26,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 dev = [
     "build",
-    "setuptools_scm",
+    "oresat-configs",
     "ruff",
 ]
 
@@ -36,8 +36,8 @@ download = "https://github.com/oresat/oresat-canopend/releases"
 source = "https://github.com/oresat/oresat-canopend"
 tracker = "https://github.com/oresat/oresat-canopend/issues"
 
-#[tool.setuptools_scm]
-#write_to = "oresat_libcanopend/_version.py"
+[tool.setuptools_scm]
+write_to = "oresat_canopend/_version.py"
 
 [tool.ruff]
 line-length = 100
