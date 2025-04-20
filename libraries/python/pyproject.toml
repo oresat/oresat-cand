@@ -37,7 +37,8 @@ source = "https://github.com/oresat/oresat-canopend"
 tracker = "https://github.com/oresat/oresat-canopend/issues"
 
 [tool.setuptools_scm]
-write_to = "oresat_canopend/_version.py"
+version_file = "oresat_canopend/_version.py"
+root = "../.." # used to find .git/
 
 [tool.ruff]
 line-length = 100
