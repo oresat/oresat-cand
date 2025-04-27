@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-PACKAGE=oresat-canopend
+PACKAGE=oresat-cand
 DATE=`date "+%a, %d %b %Y %T %z"`
 VERSION=`git describe --tags --abbrev=0`
 VERSION="${VERSION:1}"  # remove leading 'v'

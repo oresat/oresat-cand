@@ -1,6 +1,6 @@
-# oresat-canopend
+# oresat-cand
 
-A CANopen system service for OreSat Linux cards.
+A CAN system service for OreSat Linux cards.
 
 ## Setup
 
@@ -40,25 +40,25 @@ meson compile
 Run with only the internal OD (Object Dictionary).
 
 ```bash
-./oresat-canopend can0
+./oresat-cand can0
 ```
 
 ## Run with an od config
 
 A `od.conf` file is a file to describe the extra objects to add the standard
-CANopend OD.
+CANopen OD.
 
 OreSat `od.conf` files can be generated with `oresat-configs` from a project's
 `od.yaml` (the yaml lives in project repos).
 
 ```bash
-oresat-configs canopend-config od.yaml
+oresat-configs cand-config od.yaml
 ```
 
 Run with the generated conf.
 
 ```bash
-./oresat-canopend can0 -o od.conf
+./oresat-cand can0 -o od.conf
 ```
 
 **Note:** If the conf fails to load for any reason, the internal OD will still

@@ -1,5 +1,5 @@
 project(
-  'oresat-canopend',
+  'oresat-cand',
   'c',
   version: run_command('git', 'describe', '--tags', '--abbrev=0', capture: true, check: true).stdout().strip(),
   license: 'GPL-3.0',
@@ -27,14 +27,14 @@ project_target = executable(
     libcanopenlinux,
     libcommon,
     libodextensions,
-    libcanopend,
+    libcand,
   ],
   dependencies: [
     dependency('threads'),
     libcommon_dep,
     libcanopenlinux_dep,
     libodextensions_dep,
-    libcanopend_dep,
+    libcand_dep,
   ],
   install: true,
   c_args: build_args,

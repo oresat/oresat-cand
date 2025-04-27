@@ -2,20 +2,20 @@ subdir('common')
 subdir('canopenlinux')
 subdir('od_extensions')
 
-libcanopend_files = [
+libcand_files = [
   'conf_load.c',
   'ipc.c',
   'main.c',
 ]
 
-libcanopend_includes = include_directories([
+libcand_includes = include_directories([
   '.',
 ])
 
-libcanopend = shared_library(
-  'canopend',
-  libcanopend_files,
-  include_directories: libcanopend_includes,
+libcand = shared_library(
+  'cand',
+  libcand_files,
+  include_directories: libcand_includes,
   dependencies: [
     dependency('threads'),
     dependency('libzmq'),
@@ -32,7 +32,7 @@ libcanopend = shared_library(
   ]
 )
 
-libcanopend_dep = declare_dependency(
-  include_directories: libcanopend_includes,
-  link_with: libcanopend
+libcand_dep = declare_dependency(
+  include_directories: libcand_includes,
+  link_with: libcand
 )

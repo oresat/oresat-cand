@@ -1,6 +1,6 @@
-# oresat-canopend (Python)
+# oresat-cand (Python)
 
-Python library to interface with the `oresat-canopend` daemon.
+Python library to interface with the `oresat-cand` daemon.
 
 ## Install
 
@@ -13,7 +13,7 @@ pip install .
 ```python
 from time import sleep
 
-from oresat_canopend import Entry, NodeClient
+from oresat_cand import Entry, NodeClient
 
 
 class CardEntry(Entry)

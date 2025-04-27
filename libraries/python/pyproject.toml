@@ -3,8 +3,8 @@ requires = ["setuptools", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "oresat-canopend"
-description = "library to interface to oresat-canopend"
+name = "oresat-cand"
+description = "library to interface to oresat-cand"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "GPL-3.0"}
@@ -32,12 +32,12 @@ dev = [
 
 [project.urls]
 homepage = "https://www.oresat.org"
-download = "https://github.com/oresat/oresat-canopend/releases"
-source = "https://github.com/oresat/oresat-canopend"
-tracker = "https://github.com/oresat/oresat-canopend/issues"
+download = "https://github.com/oresat/oresat-cand/releases"
+source = "https://github.com/oresat/oresat-cand"
+tracker = "https://github.com/oresat/oresat-cand/issues"
 
 [tool.setuptools_scm]
-version_file = "oresat_canopend/_version.py"
+version_file = "oresat_cand/_version.py"
 root = "../.." # used to find .git/
 
 [tool.ruff]

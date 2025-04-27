@@ -1,3 +1,0 @@
-#!/bin/sh -e
-systemctl stop oresat-canopend
-systemctl disable oresat-canopend

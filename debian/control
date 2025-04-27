@@ -1,14 +1,14 @@
-Source: oresat-canopend
+Source: oresat-cand
 Maintainer: PSAS <oresat@pdx.edu>
 Build-Depends: debhelper (>= 11), meson, ninja-build, libzmq3-dev
 Homepage: https://github.com/oresat/oresat-caneopnd
 
-Package: oresat-canopend
+Package: oresat-cand
 Architecture: armhf
 Depends: ${misc:Depends}
 Description: OreSat CANopen system service
 
-Package: oresat-canopend-dev
+Package: oresat-cand-dev
 Architecture: armhf
 Depends: ${misc:Depends}
 Description: C/C++ library to interface to the OreSat CANopen system service
