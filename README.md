@@ -40,7 +40,7 @@ meson compile
 Run with only the internal OD (Object Dictionary).
 
 ```bash
-./oresat-cand can0
+./oresat-cand -i can0
 ```
 
 ## Run with an od config
@@ -58,7 +58,7 @@ oresat-configs cand-config od.yaml
 Run with the generated conf.
 
 ```bash
-./oresat-cand can0 -o od.conf
+./oresat-cand -i can0 -o od.conf
 ```
 
 **Note:** If the conf fails to load for any reason, the internal OD will still

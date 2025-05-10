@@ -92,9 +92,10 @@ static void HeartbeatNmtChangedCallback(uint8_t nodeId, uint8_t idx, CO_NMT_inte
 }
 
 static void printUsage(char *progName) {
-    printf("Usage: %s <CAN interface> [options]\n", progName);
+    printf("Usage: %s [options]\n", progName);
     printf("\n");
     printf("Options:\n");
+    printf("  -i                  CAN interface\n");
     printf("  -m                  Network manager node\n");
     printf("  -n                  Set node id\n");
     printf("  -o                  Load od config\n");
@@ -142,20 +143,19 @@ int main(int argc, char *argv[]) {
     CO_CANptrSocketCan_t CANptr = {0};
     int opt;
     bool firstRun = true;
-    char *CANdevice = NULL;
+    char CANdevice[20] = "can0";
     char dcf_path[PATH_MAX] = {0};
     bool loaded_od_conf = false;
     bool network_manager_node = false;
 
-    if (argc < 2) {
-        printUsage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    while ((opt = getopt(argc, argv, "hmn:o:p:v")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:mn:o:p:v")) != -1) {
         switch (opt) {
         case 'h':
             printUsage(argv[0]);
             exit(EXIT_SUCCESS);
+        case 'i':
+            strncpy(CANdevice, optarg, strlen(optarg));
+            break;
         case 'm':
             network_manager_node = true;
             break;
@@ -175,15 +175,6 @@ int main(int argc, char *argv[]) {
             printUsage(argv[0]);
             exit(EXIT_FAILURE);
         }
-    }
-
-    if (optind < argc) {
-        CANdevice = argv[optind];
-        CANptr.can_ifindex = if_nametoindex(CANdevice);
-    }
-    if (CANdevice == NULL) {
-        log_critical("no CAN interface arg");
-        exit(EXIT_FAILURE);
     }
 
     if (rtPriority != -1 &&
