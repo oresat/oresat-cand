@@ -1,18 +1,19 @@
+from __future__ import annotations
+
 import struct
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Union
 
 
 @dataclass
 class DataTypeDef:
     id: int
     py_types: tuple
-    fmt: Optional[str]
+    fmt: str
 
 
 class DataType(DataTypeDef, Enum):
-    BOOL = 0x1, (bool,), "?"
+    BOOL = 0x1, (bool, int), "?"
     INT8 = 0x2, (int,), "b"
     INT16 = 0x3, (int,), "h"
     INT32 = 0x4, (int,), "i"
@@ -20,9 +21,9 @@ class DataType(DataTypeDef, Enum):
     UINT16 = 0x6, (int,), "H"
     UINT32 = 0x7, (int,), "I"
     FLOAT32 = 0x8, (float,), "f"
-    STR = 0x9, (str,), None
-    OCTET_STR = 0xA, (bytes, bytearray), None
-    DOMAIN = 0xF, (bytes, bytearray, None), None
+    STR = 0x9, (str,), ""
+    OCTET_STR = 0xA, (bytes, bytearray), ""
+    DOMAIN = 0xF, (bytes, bytearray, type(None)), ""
     FLOAT64 = 0x11, (float,), "d"
     INT64 = 0x15, (int,), "q"
     UINT64 = 0x1B, (int,), "Q"
@@ -45,17 +46,20 @@ class EntryBitFieldDef:
 class EntryBitField(EntryBitFieldDef, Enum):
     """Virtual base class for entry enums."""
 
+    def __hash__(self) -> int:
+        return self.mask
+
 
 @dataclass
 class EntryDef:
     index: int
     subindex: int
     data_type: DataType
-    default: Union[int, float, bool, str, bytes, None]
-    low_limit: Optional[int] = None
-    high_limit: Optional[int] = None
-    enum: Optional[Enum] = None
-    bitfield: Optional[EntryBitField] = None
+    default: int | float | bool | str | bytes | None
+    low_limit: int | None = None
+    high_limit: int | None = None
+    enum: Enum | None = None
+    bitfield: EntryBitField | None = None
 
 
 class Entry(EntryDef, Enum):
@@ -64,8 +68,9 @@ class Entry(EntryDef, Enum):
     def __hash__(self) -> int:
         return self.index << 8 + self.subindex
 
-    def find_entry(self, index: int, subindex: int):
-        for entry in list(self):
+    @classmethod
+    def find(cls, index: int, subindex: int) -> Entry:
+        for entry in list(cls):
             if entry.index == index and entry.subindex == subindex:
                 return entry
         raise ValueError(f"no entry with index 0x{index:X} and subindex 0x{subindex:X} exist")
@@ -91,10 +96,10 @@ class Entry(EntryDef, Enum):
             raise ValueError(f"entry {self.name} value {value} must be positive")
         values = {}
         for bitfield in list(self.bitfield):
-            values[bitfield] = (value & self.bitfield.mask) >> self.bitfield.offset
+            values[bitfield] = (value & bitfield.mask) >> bitfield.offset
         return values
 
-    def decode(self, raw: bytes, use_enum: bool = True) -> Any:
+    def decode(self, raw: bytes) -> bool | int | float | str | bytes | None:
         value = raw
         try:
             if self.data_type == DataType.STR:
@@ -103,16 +108,22 @@ class Entry(EntryDef, Enum):
                 value = raw
             elif self.data_type != DataType.DOMAIN:
                 value = struct.unpack("<" + self.data_type.fmt, raw)[0]
-
-            if use_enum and self.enum and isinstance(value, int) and value in self.enum:
-                value = self.enum(value)
         except Exception as e:
             raise ValueError(f"{self.name} decode {e}") from e
         return value
 
-    def encode(self, value: Any) -> bytes:
+    def decode_to_enum(self, raw: bytes) -> Enum:
+        value = self.decode(raw)
+        if self.enum is not None:
+            return self.enum(value)
+        raise ValueError(f"entry {self.name} has no enum def")
+
+    def encode(self, value: bool | int | float | str | bytes | None | Enum) -> bytes:
         if isinstance(value, Enum):
             value = value.value
+
+        if not isinstance(value, self.data_type.py_types):
+            raise TypeError(f"{self.name} encode {value} ({type(value)}) invalid")
 
         raw = value
         try:
@@ -121,7 +132,10 @@ class Entry(EntryDef, Enum):
                 raw = value.encode()
             elif self.data_type == DataType.OCTET_STR:
                 raw = value
-            elif self.data_type != DataType.DOMAIN:
+            elif self.data_type == DataType.DOMAIN:
+                if value is not None:
+                    raw = value
+            else:
                 raw = struct.pack("<" + self.data_type.fmt, value)
         except Exception as e:
             raise ValueError(f"{self.name} encode {e}") from e
