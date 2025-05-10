@@ -54,6 +54,39 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
 static bool parse_int_key(const char *string, int *value);
 static uint8_t get_access_attr(char *access_type);
 
+void node_conf_load(const char *file_path, char *can_interface, uint8_t *node_id, bool *network_manager) {
+    if (!file_path) {
+        return;
+    }
+
+    FILE *fp = fopen(file_path, "r");
+    if (fp == NULL) {
+        return;
+    }
+
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t nread;
+
+    while ((nread = getline(&line, &len, fp)) != -1) {
+        if (!strncmp(line, "CanInterface=", strlen("CanInterface="))) {
+            char *tmp = &line[strlen("CanInterface=")];
+            strncpy(can_interface, tmp, strlen(tmp));
+            can_interface[strlen(tmp) - 1] = '\0'; // remove newline
+        } else if (!strncmp(line, "NodeId=", strlen("NodeId="))) {
+            int tmp = 0;
+            parse_int_key(&line[strlen("NodeId=")], &tmp);
+            *node_id = tmp;
+        } else if (!strncmp(line, "NetworkManager=", strlen("NetworkManager="))) {
+            int tmp = 0;
+            parse_int_key(&line[strlen("NetworkManager=")], &tmp);
+            *network_manager = (bool)tmp;
+        }
+    }
+
+    fclose(fp);
+}
+
 int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
     if (!file_path || !od) {
         return -1;
@@ -87,7 +120,9 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
 
     FILE *fp = fopen(file_path, "r");
     if (fp == NULL) {
-        free(od_list);
+        if (od_list != NULL) {
+            free(od_list);
+        }
         return -1;
     }
 

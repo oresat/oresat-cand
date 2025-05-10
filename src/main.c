@@ -28,6 +28,11 @@
 #include <unistd.h>
 #include <wordexp.h>
 
+#define NODE_CONFIG_PATH      "/etc/oresat/node.conf"
+#define OD_CONFIG_PATH        "/etc/oresat/od.conf"
+#define DEFAULT_NODE_ID       0x7C
+#define DEFAULT_CAN_INTERFACE "can0"
+
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US  1000
 
@@ -45,7 +50,7 @@ static CO_config_t base_config;
 static fcache_t *fread_cache = NULL;
 static fcache_t *fwrite_cache = NULL;
 
-static uint8_t CO_activeNodeId = 0x7C;
+static uint8_t CO_activeNodeId = DEFAULT_NODE_ID;
 static CO_epoll_t epRT;
 static void *rt_thread(void *arg);
 static void *ipc_responder_thread(void *arg);
@@ -95,13 +100,16 @@ static void printUsage(char *progName) {
     printf("Usage: %s [options]\n", progName);
     printf("\n");
     printf("Options:\n");
-    printf("  -i                  CAN interface\n");
-    printf("  -m                  Network manager node\n");
-    printf("  -n                  Set node id\n");
-    printf("  -o                  Load od config\n");
-    printf("  -p <RT priority>    Real-time priority of RT thread (1 .. 99). If not set or\n");
-    printf("                      set to -1, then normal scheduler is used for RT thread.\n");
+    printf("  -i <interface>      CAN interface (default: " DEFAULT_CAN_INTERFACE ")\n");
+    printf("  -m                  Node is the network manager node\n");
+    printf("  -n <node-id>        CANopen node id (default: 0x%X)\n", DEFAULT_NODE_ID);
+    printf("  -o <path>           Load od config (default: " OD_CONFIG_PATH ")\n");
+    printf("  -p <priority>       Real-time priority of RT thread (1 .. 99). If not set or\n");
+    printf("                      set to -1, then normal scheduler is used for RT thread\n");
+    printf("                      (default: -1).\n");
     printf("  -v                  Verbose logging\n");
+    printf("\n");
+    printf("Most of these arguments can be set in " NODE_CONFIG_PATH " as well.\n");
 }
 
 static void fix_cob_ids(OD_t *od, uint8_t node_id) {
@@ -143,10 +151,12 @@ int main(int argc, char *argv[]) {
     CO_CANptrSocketCan_t CANptr = {0};
     int opt;
     bool firstRun = true;
-    char CANdevice[20] = "can0";
+    char CANdevice[20] = DEFAULT_CAN_INTERFACE;
     char dcf_path[PATH_MAX] = {0};
     bool loaded_od_conf = false;
     bool network_manager_node = false;
+
+    node_conf_load(NODE_CONFIG_PATH, CANdevice, &CO_activeNodeId, &network_manager_node);
 
     while ((opt = getopt(argc, argv, "hi:mn:o:p:v")) != -1) {
         switch (opt) {
@@ -184,7 +194,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    log_info("starting %s v%s", PROJECT_NAME, PROJECT_VERSION);
+    log_info("starting %s %s", PROJECT_NAME, PROJECT_VERSION);
 
     bool first_interface_check = true;
     do {
