@@ -2,8 +2,9 @@
 
 ORESAT_CONF_DIR=/etc/oresat
 NODE_CONF=$ORESAT_CONF_DIR/node.conf
+
 if [ ! -f "$NODE_CONF" ]; then
-mkdir $ORESAT_CONF_DIR
+mkdir -p $ORESAT_CONF_DIR
 cat >> $NODE_CONF << EOF
 [Node]
 NodeId=0x7C
