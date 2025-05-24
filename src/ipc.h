@@ -75,7 +75,7 @@ typedef struct __attribute((packed)) {
 
 void ipc_init(OD_t *od);
 void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fread_cache);
-void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config);
+void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config, volatile bool *reset);
 void ipc_monitor_process(void);
 void ipc_free(void);
 

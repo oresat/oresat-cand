@@ -479,8 +479,12 @@ static void *ipc_responder_thread(void *arg) {
 
 static void *ipc_consumer_thread(void *arg) {
     (void)arg;
+    bool ipc_reset = false;
     while (CO_endProgram == 0) {
-        ipc_consumer_process(co, od, &base_config, &config);
+        ipc_consumer_process(co, od, &base_config, &config, &ipc_reset);
+        if (ipc_reset) {
+            CO_endProgram = 1;
+        }
     }
     return NULL;
 }

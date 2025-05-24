@@ -392,7 +392,7 @@ void ipc_responder_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *fr
     zmq_send(responder, buffer_out_full, buffer_out_send + 1, 0);
 }
 
-void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config) {
+void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config, bool *reset) {
     if (!co || !od || !base_config || !config) {
         log_error(LOG_CONSUMER "ipc process null arg");
         return;
@@ -480,7 +480,7 @@ void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_confi
                 get_default_od_config_path(path, path_len);
                 log_debug(LOG_CONSUMER "od config: local %s | apps %s", path, file_path);
                 if (check_file_crc32_match(path, file_path)) {
-                    log_info(LOG_CONSUMER "local od config match apps");
+                    log_info(LOG_CONSUMER "local od config matches apps");
                 } else {
                     log_info(LOG_CONSUMER "local od config does not match apps");
                     char *path_copy = strdup(path);
@@ -491,6 +491,8 @@ void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_confi
                         log_error(LOG_CONSUMER "failed to update local od config to apps");
                     } else {
                         log_info(LOG_CONSUMER "updated local od config to apps");
+                        log_info(LOG_CONSUMER "resetting app to load new config");
+                        *reset = true;
                     }
                 }
             } else {
