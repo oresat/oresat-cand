@@ -45,10 +45,10 @@ Run with only the internal OD (Object Dictionary).
 
 ## Run with an od config
 
-A `od.conf` file is a file to describe the extra objects to add the standard
+A `od.csv` file is a file to describe the extra objects to add the standard
 CANopen OD.
 
-OreSat `od.conf` files can be generated with `oresat-configs` from a project's
+OreSat `od.csv` files can be generated with `oresat-configs` from a project's
 `od.yaml` (the yaml lives in project repos).
 
 ```bash
@@ -58,10 +58,10 @@ oresat-configs cand-config od.yaml
 Run with the generated conf.
 
 ```bash
-./oresat-cand -i can0 -o od.conf
+./oresat-cand -i can0 -o od.csv
 ```
 
-**Note:** If the conf fails to load for any reason, the internal OD will still
+**Note:** If the csv fails to load for any reason, the internal OD will still
 be used.
 
 ## Build Debian package
