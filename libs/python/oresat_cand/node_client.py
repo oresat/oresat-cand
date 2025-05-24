@@ -112,7 +112,7 @@ class NodeClientBase:
                 if self._od_path and not self._od_checked:
                     self._check_od_config(self._od_path)
                     path = self._od_path if isinstance(self._od_path, str) else str(self._od_path)
-                    logger.info("check od %s", path)
+                    logger.debug("check od %s", path)
                     self._od_checked = True
             elif event in [zmq.EVENT_DISCONNECTED, zmq.EVENT_CLOSED] and self._connected:
                 logger.info("sockets disconnected")
