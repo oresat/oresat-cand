@@ -1,12 +1,12 @@
 #include "CANopen.h"
 #include "CO_epoll_interface.h"
 #include "OD.h"
-#include "conf_load.h"
 #include "config.h"
 #include "ecss_time_ext.h"
 #include "fcache.h"
 #include "file_transfer_ext.h"
 #include "ipc.h"
+#include "load_configs.h"
 #include "logger.h"
 #include "os_command_ext.h"
 #include "system.h"
@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
     bool loaded_od_conf = false;
     bool network_manager_node = false;
 
-    node_conf_load(NODE_CONFIG_PATH, CANdevice, &CO_activeNodeId, &network_manager_node);
+    node_config_load(NODE_CONFIG_PATH, CANdevice, &CO_activeNodeId, &network_manager_node);
 
     while ((opt = getopt(argc, argv, "hi:mn:o:p:v")) != -1) {
         switch (opt) {
@@ -210,10 +210,10 @@ int main(int argc, char *argv[]) {
     }
 
     if (dcf_path[0] != '\0') {
-        if (od_conf_load(dcf_path, &od, !network_manager_node) < 0) {
+        if (od_config_load(dcf_path, &od, !network_manager_node) < 0) {
             log_critical("failed to load app od objects from %s", dcf_path);
         } else {
-            log_info("loading app od objects rom %s", dcf_path);
+            log_info("loading app od objects from %s", dcf_path);
             loaded_od_conf = true;
         }
     }
@@ -439,7 +439,7 @@ int main(int argc, char *argv[]) {
     CO_delete(CO);
 
     if (loaded_od_conf && (od != NULL)) {
-        od_conf_free(od, !network_manager_node);
+        od_config_free(od, !network_manager_node);
     }
 
     log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "finished");

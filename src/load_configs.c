@@ -8,9 +8,11 @@
 #define OD_DEFINITION
 #include "301/CO_ODinterface.h"
 #include "OD.h"
-#include "conf_load.h"
+#include "load_configs.h"
 #include "logger.h"
 #include "str2buf.h"
+
+#define OBJECTS_COMMENT ";objects="
 
 #define VARIABLE 0x7
 #define ARRAY    0x8
@@ -31,30 +33,34 @@
 #define INTERGER64     0x15
 #define UNSIGNED64     0x1B
 
-#define INDEX    1
-#define SUBINDEX 2
+enum csv_fields {
+    CSV_FIELD_OBJECT_TYPE,
+    CSV_FIELD_INDEX,
+    CSV_FIELD_SUBINDEX,
+    CSV_FIELD_ACCESS_TYPE,
+    CSV_FIELD_DATA_TYPE,
+    CSV_FIELD_DEFAULT,
+    NUM_OF_CSV_FIELDS,
+};
 
 struct tmp_data_t {
     int object_type;
     int data_type;
-    char access_type[20];
-    int pdo_mapping;
+    char access_type[16];
+    int index;
+    int subindex;
     int total_subindexes;
-    uint16_t index;
-    uint8_t subindex;
-    char default_value[1024];
+    char default_value[256];
 };
 
 static void reset_tmp_data(struct tmp_data_t *data);
-static int parse_index_header(const char *line, uint16_t *index);
-static int parse_subindex_header(const char *line, uint16_t *index, uint8_t *subindex);
 static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_length, uint8_t *attribute);
 static int fill_entry_index(OD_entry_t *entry, struct tmp_data_t *data);
 static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int sub_offset);
 static bool parse_int_key(const char *string, int *value);
 static uint8_t get_access_attr(char *access_type);
 
-void node_conf_load(const char *file_path, char *can_interface, uint8_t *node_id, bool *network_manager) {
+void node_config_load(const char *file_path, char *can_interface, uint8_t *node_id, bool *network_manager) {
     if (!file_path) {
         return;
     }
@@ -87,7 +93,7 @@ void node_conf_load(const char *file_path, char *can_interface, uint8_t *node_id
     fclose(fp);
 }
 
-int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
+int od_config_load(const char *file_path, OD_t **od, bool extend_internal_od) {
     if (!file_path || !od) {
         return -1;
     }
@@ -106,17 +112,15 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
     }
     uint32_t internal_od_offset = 0;
 
-    unsigned int e = 0;
+    unsigned int e = -1;
 
     struct tmp_data_t data;
-    reset_tmp_data(&data);
 
     char *line = NULL;
     size_t len = 0;
     ssize_t nread;
 
     int r;
-    int section = 0;
 
     FILE *fp = fopen(file_path, "r");
     if (fp == NULL) {
@@ -134,32 +138,96 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
     out->list = NULL;
     out->size = 0;
 
-    OD_entry_t *entry;
+    OD_entry_t *entry = NULL;
     int sub_offset = 0;
     uint32_t last_interal_index = 0;
+
+    char *token;
     bool skip_entry = false;
+    bool header_skipped = false;
+    bool object_comment_found = false;
 
     int l = -1;
     while ((nread = getline(&line, &len, fp)) != -1) {
+        reset_tmp_data(&data);
         l++;
         skip_entry = false;
 
         if ((line[0] == '\n') || (line[0] == ';')) {
+            if (!strncmp(line, OBJECTS_COMMENT, strlen(OBJECTS_COMMENT))) {
+                object_comment_found = true;
+                int tmp = 0;
+                parse_int_key(&line[strlen(OBJECTS_COMMENT)], &tmp);
+                size += tmp;
+                od_list = (OD_entry_t *)realloc(od_list, sizeof(OD_entry_t) * (size + 1));
+            }
             continue; // empty line or comment
+        } else if (!header_skipped) {
+            header_skipped = true;
+            continue;
         }
 
-        if (line[0] == '[') {
-            // new section add last index/subindex section
-            if (section == INDEX) {
+        if (!object_comment_found) {
+            continue;
+        }
+
+        token = strsep(&line, ",");
+        for (int count = 0; (count < NUM_OF_CSV_FIELDS) && (token != NULL); count++) {
+            switch (count) {
+            case CSV_FIELD_OBJECT_TYPE:
+                parse_int_key(token, &data.object_type);
+                break;
+            case CSV_FIELD_INDEX:
+                parse_int_key(token, &data.index);
+                break;
+            case CSV_FIELD_SUBINDEX:
+                if ((data.object_type == VARIABLE) && strlen(token) > 0) {
+                    parse_int_key(token, &data.subindex);
+                }
+                break;
+            case CSV_FIELD_ACCESS_TYPE:
+                if (data.object_type == VARIABLE) {
+                    memcpy(data.access_type, token, strlen(token) + 1);
+                }
+                break;
+            case CSV_FIELD_DATA_TYPE:
+                if (data.object_type == VARIABLE) {
+                    parse_int_key(token, &data.data_type);
+                }
+                break;
+            case CSV_FIELD_DEFAULT:
+                if (data.object_type == VARIABLE) {
+                    if (token[0] != '\n') {
+                        memcpy(data.default_value, token, strlen(token));
+                        data.default_value[strlen(token) - 1] = '\0'; // remove '\n'
+                    }
+                } else {
+                    parse_int_key(token, &data.total_subindexes);
+                }
+                break;
+            default:
+                log_warning("line %d in %s had extra fields", l, file_path);
+                break;
+            }
+            token = strsep(&line, ",");
+        }
+
+        if (data.subindex == -1) {
+            e++;
+            entry = &od_list[e];
+        }
+
+        if (true) { // TODO remove (makes git diff easier to read)
+            if (data.subindex == -1) {
                 if (extend_internal_od) { // copy data/pointers from internal od entry
                     while ((internal_od_offset < OD->size) && (data.index >= OD->list[internal_od_offset].index)) {
                         last_interal_index = OD->list[internal_od_offset].index;
                         memcpy(entry, &OD->list[internal_od_offset], sizeof(OD_entry_t));
                         internal_od_offset++;
-                        entry = &od_list[e];
                         e++;
+                        entry = &od_list[e];
                     }
-                    if (data.index == last_interal_index) {
+                    if ((uint16_t)data.index == last_interal_index) {
                         log_warning("config redefined entry 0x%X, using internal def", last_interal_index);
                         skip_entry = true;
                         e--;
@@ -176,14 +244,15 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
                     }
                 }
                 sub_offset = 0;
-            } else if (section == SUBINDEX) {
+            } else if (data.object_type == VARIABLE) {
                 if (extend_internal_od) { // copy data/pointers from internal od entry
-                    if (data.index == last_interal_index) {
+                    if ((uint16_t)data.index == last_interal_index) {
                         log_warning("config redefined entry 0x%X - 0x%X, using internal def", last_interal_index,
                                     data.subindex);
                         skip_entry = true;
                     }
                 }
+
                 if (!skip_entry) {
                     r = fill_entry_subindex(entry, &data, sub_offset);
                     if (r < 0) {
@@ -198,82 +267,12 @@ int od_conf_load(const char *file_path, OD_t **od, bool extend_internal_od) {
                 log_error("invalid entry %d > size %d", e, size);
                 goto error;
             }
-
-            reset_tmp_data(&data);
-            section = 0;
-
-            if ((nread == 7) && (line[5] == ']')) {
-                if (parse_index_header(line, &data.index)) {
-                    log_error("invalid index header line: %d - %s", l, line);
-                    goto error;
-                }
-                section = INDEX;
-                data.subindex = 0;
-
-                entry = &od_list[e];
-                e++;
-            } else if (!strncmp(&line[5], "sub", 3) &&
-                       (((nread == 11) && (line[9] == ']')) || ((nread == 12) && (line[10] == ']')))) {
-                if (parse_subindex_header(line, &data.index, &data.subindex)) {
-                    log_error("invalid subindex header line: %d - %s", l, line);
-                    goto error;
-                }
-                section = SUBINDEX;
-            }
-
-            continue; // ignore headers
-        }
-
-        if (!strncmp(line, "SupportedObjects=", strlen("SupportedObjects="))) {
-            int tmp = 0;
-            if (parse_int_key(&line[strlen("SupportedObjects=")], &tmp)) {
-                size += (uint32_t)tmp;
-                void *p = NULL;
-                // size + 1 is for the entry sentinal
-                p = (OD_entry_t *)realloc(od_list, sizeof(OD_entry_t) * (size + 1));
-                if (p == NULL) {
-                    log_error("entry realloc failed: %d", -errno);
-                    goto error;
-                }
-                od_list = p;
-                if (size == 3) { // first manitory objects
-                    memset(od_list, 0, sizeof(OD_entry_t) * (size + 1));
-                } else {
-                    memset(&od_list[e + 1], 0, sizeof(OD_entry_t) * tmp);
-                }
-            }
-        } else if (!strncmp(line, "ObjectType=", strlen("ObjectType="))) {
-            parse_int_key(&line[strlen("ObjectType=")], &data.object_type);
-        } else if (!strncmp(line, "DataType=", strlen("DataType="))) {
-            parse_int_key(&line[strlen("DataType=")], &data.data_type);
-        } else if (!strncmp(line, "AccessType=", strlen("AccessType="))) {
-            char *tmp = &line[strlen("AccessType=")];
-            strncpy(data.access_type, tmp, strlen(tmp));
-            data.access_type[strlen(tmp) - 1] = '\0'; // remove newline
-        } else if (!strncmp(line, "PDOMapping=", strlen("PDOMapping"))) {
-            parse_int_key(&line[strlen("PDOMapping=")], &data.pdo_mapping);
-        } else if (!strncmp(line, "DefaultValue=", strlen("DefaultValue="))) {
-            char *tmp = &line[strlen("DefaultValue=")];
-            strncpy(data.default_value, tmp, strlen(tmp));
-            data.default_value[strlen(tmp) - 1] = '\0'; // remove newline
-        } else if (!strncmp(line, "SubNumber=", strlen("SubNumber="))) {
-            parse_int_key(&line[strlen("SubNumber=")], &data.total_subindexes);
         }
     }
 
-    // add final index/subindex section
-    if (section == INDEX) {
-        r = fill_entry_index(entry, &data);
-        if (r < 0) {
-            log_error("failed to fill index 0x%X at entry %d", data.index, e);
-            goto error;
-        }
-    } else if (section == SUBINDEX) {
-        r = fill_entry_subindex(entry, &data, sub_offset);
-        if (r < 0) {
-            log_error("failed to fill index 0x%X subindex 0x%X at entry %d", data.index, data.subindex, e);
-            goto error;
-        }
+    if (!object_comment_found) {
+        log_error("objects= comment not found in config");
+        goto error;
     }
 
     fclose(fp);
@@ -288,12 +287,12 @@ error:
     if (out != NULL) {
         out->list = od_list;
         out->size = size;
-        od_conf_free(out, extend_internal_od);
+        od_config_free(out, extend_internal_od);
     }
     return -1;
 }
 
-void od_conf_free(OD_t *od, bool extend_internal_od) {
+void od_config_free(OD_t *od, bool extend_internal_od) {
     if (od == NULL) {
         return;
     }
@@ -515,46 +514,10 @@ static void reset_tmp_data(struct tmp_data_t *data) {
     data->object_type = 0;
     data->data_type = 0;
     strncpy(data->access_type, "rw", 3);
-    data->pdo_mapping = 0;
     data->index = 0;
-    data->subindex = 0;
+    data->subindex = -1;
     data->total_subindexes = 0;
     data->default_value[0] = 0;
-}
-
-static int parse_index_header(const char *line, uint16_t *index) {
-    char *end;
-    char tmp[] = "0000";
-    strncpy(tmp, &line[1], 4);
-    *index = (uint16_t)strtoul(tmp, &end, 16);
-    if (tmp == end) {
-        return -1;
-    }
-    return 0;
-}
-
-static int parse_subindex_header(const char *line, uint16_t *index, uint8_t *subindex) {
-    char *end;
-    char tmp[] = "0000";
-    strncpy(tmp, &line[1], 4);
-    *index = (uint16_t)strtoul(tmp, &end, 16);
-    if (tmp == end) {
-        log_error("index line error: '%s'\n", tmp);
-        return -1;
-    }
-    strncpy(tmp, &line[7], 2);
-    tmp[0] = line[8];
-    if (line[9] == ']') {
-        tmp[1] = '\0';
-    } else {
-        tmp[1] = line[9];
-        tmp[2] = '\0';
-    }
-    *subindex = strtoul(tmp, &end, 16);
-    if (tmp == end) {
-        return -1;
-    }
-    return 0;
 }
 
 static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_length, uint8_t *attribute) {
@@ -564,54 +527,57 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
     case BOOLEAN:
         *value = (void *)str2buf_bool(data->default_value);
         length = 1;
+        *attribute |= ODA_TRPDO;
         break;
     case INTERGER8:
         *value = (void *)str2buf_int8(data->default_value);
         length = 1;
+        *attribute |= ODA_TRPDO;
         break;
     case UNSIGNED8:
         *value = (void *)str2buf_uint8(data->default_value);
         length = 1;
+        *attribute |= ODA_TRPDO;
         break;
     case INTERGER16:
         *value = (void *)str2buf_int16(data->default_value);
         length = 2;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case UNSIGNED16:
         *value = (void *)str2buf_uint16(data->default_value);
         length = 2;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case INTERGER32:
         *value = (void *)str2buf_int32(data->default_value);
         length = 4;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case UNSIGNED32:
         *value = (void *)str2buf_uint32(data->default_value);
         length = 4;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case REAL32:
         *value = (void *)str2buf_float32(data->default_value);
         length = 4;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case INTERGER64:
         *value = (void *)str2buf_int64(data->default_value);
         length = 8;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case UNSIGNED64:
         *value = (void *)str2buf_uint64(data->default_value);
         length = 8;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case REAL64:
         *value = (void *)str2buf_float64(data->default_value);
         length = 8;
-        *attribute |= ODA_MB;
+        *attribute |= ODA_MB | ODA_TRPDO;
         break;
     case VISIBLE_STRING:
         length = strlen(data->default_value);
@@ -664,10 +630,6 @@ static int fill_var(struct tmp_data_t *data, void **value, OD_size_t *value_leng
     }
 
     *attribute |= get_access_attr(data->access_type);
-
-    if (data->pdo_mapping) {
-        *attribute |= ODA_TRPDO;
-    }
 
     return 0;
 }

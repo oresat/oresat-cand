@@ -3,8 +3,8 @@ subdir('canopenlinux')
 subdir('od_extensions')
 
 libcand_files = [
-  'conf_load.c',
   'ipc.c',
+  'load_configs.c',
   'main.c',
 ]
 
