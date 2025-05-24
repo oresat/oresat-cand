@@ -49,7 +49,7 @@ class DynamicMessage:
         return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id, *data[:-1]) + data[-1]
 
     @classmethod
-    def unpack(cls, raw: bytes) -> OdWriteMessage:
+    def unpack(cls, raw: bytes) -> DynamicMessage:
         _validate_unpack(cls.id, raw)
         size = struct.calcsize("<" + cls._fmt)
         data = struct.unpack("<" + cls._fmt, raw[1 : size + 1])
@@ -218,6 +218,23 @@ class SdoListFilesMessage(Message):
         files = json.loads(files_raw.decode())
         data = struct.unpack("<" + cls._fmt, raw[1 : size + 1])
         return cls(*data[1:], files)
+
+
+@dataclass
+class ConfigMessage(DynamicMessage):
+    _fmt: ClassVar[str] = "B"
+    id: ClassVar[int] = 0xD
+    file: str
+
+    def pack(self) -> bytes:
+        return PROTOCAL_VERSION_RAW + struct.pack("<" + self._fmt, self.id) + self.file.encode()
+
+    @classmethod
+    def unpack(cls, raw: bytes) -> ConfigMessage:
+        _validate_unpack(cls.id, raw)
+        size = struct.calcsize("<" + cls._fmt)
+        file_raw = raw[1 + size :]
+        return cls(file_raw.decode())
 
 
 @dataclass

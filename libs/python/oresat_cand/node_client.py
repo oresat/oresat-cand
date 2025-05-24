@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from threading import Lock, Thread
+from time import sleep
 from typing import Any, Callable
 
 import zmq
@@ -15,6 +16,7 @@ from .entry import Entry
 from .message import (
     AddFileMessage,
     BusStateMessage,
+    ConfigMessage,
     EmcyRecvMessage,
     EmcySendMessage,
     HbRecvMessage,
@@ -27,6 +29,9 @@ from .message import (
     SyncSendMessage,
     TpdoSendMessage,
 )
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class NodeState(Enum):
@@ -51,12 +56,13 @@ class LocalData:
 class NodeClientBase:
     RECV_TIMEOUT_MS = 1000
 
-    def __init__(self, entries: Entry, addr: str, debug: bool):
+    def __init__(self, entries: Entry, addr: str, od_config_path: str | Path | None = None):
         self._data = {entry: LocalData(entry.default) for entry in list(entries)}
         self._lookup_entry = {(entry.index, entry.subindex): entry for entry in self._data.keys()}
-        self._debug = debug
+        self._od_path = od_config_path
         self._addr = addr
 
+        self._od_checked = False
         self._connected = False
         self._bus_state = BusState.NOT_FOUND
         self._emcy_cb: Callable | None = None
@@ -95,23 +101,28 @@ class NodeClientBase:
         while self._monitor_socket.poll():
             event = recv_monitor_message(self._monitor_socket)["event"]
             if event == zmq.EVENT_HANDSHAKE_SUCCEEDED:
-                logging.info("sockets connected")
+                sleep(0.1)
+                logger.info("sockets connected")
                 self._connected = True
                 for entry, data in self._data.items():
                     if not data.write_cb:
                         continue
                     raw = entry.encode(data.value)
                     self._broadcast(OdWriteMessage(entry.index, entry.subindex, raw))
+                if self._od_path and not self._od_checked:
+                    self._check_od_config(self._od_path)
+                    path = self._od_path if isinstance(self._od_path, str) else str(self._od_path)
+                    logger.info("check od %s", path)
+                    self._od_checked = True
             elif event in [zmq.EVENT_DISCONNECTED, zmq.EVENT_CLOSED] and self._connected:
-                logging.info("sockets disconnected")
+                logger.info("sockets disconnected")
                 self._connected = False
                 self._bus_state = BusState.NOT_FOUND
 
     def _consume_thread_run(self):
         while True:
             msg_recv = self._consume_socket.recv()
-            if self._debug:
-                logging.debug("CONSUME: " + msg_recv.hex().upper())
+            logger.debug("CONSUME: " + msg_recv.hex().upper())
 
             if msg_recv[0] == OdWriteMessage.id:
                 try:
@@ -124,40 +135,38 @@ class NodeClientBase:
                     if self._data[entry].write_cb is not None:
                         self._data[entry].write_cb(value)
                 except Exception as e:
-                    logging.error(f"write callback error: {e}")
+                    logger.error(f"write callback error: {e}")
             elif msg_recv[0] == HbRecvMessage.id:
                 if self._hb_cb:
                     try:
                         msg_req = HbRecvMessage.unpack(msg_recv)
                         self._hb_cb(msg_req.node_id, NodeState(msg_req.state))
                     except Exception as e:
-                        logging.error(f"heartbeat callback error: {e}")
+                        logger.error(f"heartbeat callback error: {e}")
             elif msg_recv[0] == EmcyRecvMessage.id:
                 if self._emcy_cb:
                     try:
                         msg_req = EmcyRecvMessage.unpack(msg_recv)
                         self._emcy_cb(msg_req.node_id, msg_req.code, msg_req.info)
                     except Exception as e:
-                        logging.error(f"emcy callback error: {e}")
+                        logger.error(f"emcy callback error: {e}")
             elif msg_recv[0] == BusStateMessage.id:
                 try:
                     msg_req = BusStateMessage.unpack(msg_recv)
                     self._bus_state = BusState(msg_req.state)
                 except Exception as e:
-                    logging.error(f"bus state callback error: {e}")
+                    logger.error(f"bus state callback error: {e}")
 
     def _send_and_recv(self, req_msg):
         self._command_socket_lock.acquire()
         try:
             req_msg_raw = req_msg.pack()
 
-            if self._debug:
-                logging.debug(f"CLIENT SEND {len(req_msg_raw)}: {req_msg_raw.hex().upper()}")
+            logger.debug(f"CLIENT SEND {len(req_msg_raw)}: {req_msg_raw.hex().upper()}")
             self._command_socket.send(req_msg_raw)
 
             res_msg_raw = self._command_socket.recv()
-            if self._debug:
-                logging.debug(f"CLIENT RECV {len(res_msg_raw)}: {res_msg_raw.hex().upper()}")
+            logger.debug(f"CLIENT RECV {len(res_msg_raw)}: {res_msg_raw.hex().upper()}")
 
             res_msg = req_msg.unpack(res_msg_raw)
         except Exception as e:
@@ -168,8 +177,7 @@ class NodeClientBase:
 
     def _broadcast(self, msg):
         msg_raw = msg.pack()
-        if self._debug:
-            logging.debug("BROADCAST: " + msg_raw.hex().upper())
+        logger.debug("BROADCAST: " + msg_raw.hex().upper())
         try:
             self._broadcast_socket.send(msg_raw)
         except Exception:
@@ -215,10 +223,18 @@ class NodeClientBase:
             raise ValueError(f"{entry.name} write callback is already set")
         self._data[entry].write_cb = write_cb
 
+    def _check_od_config(self, config_path: str | Path):
+        if isinstance(config_path, str):
+            config_path = Path(config_path)
+        path = str(config_path.absolute())
+        self._broadcast(ConfigMessage(path))
+
 
 class NodeClient(NodeClientBase):
-    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
-        super().__init__(entries, addr, debug)
+    def __init__(
+        self, entries: Entry, addr: str = "localhost", od_config_path: str | Path | None = None
+    ):
+        super().__init__(entries, addr, od_config_path)
 
     def add_file(self, file: str | Path):
         if isinstance(file, str):
@@ -231,8 +247,10 @@ class NodeClient(NodeClientBase):
 
 
 class ManagerNodeClient(NodeClientBase):
-    def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
-        super().__init__(entries, addr, debug)
+    def __init__(
+        self, entries: Entry, addr: str = "localhost", od_config_path: str | Path | None = None
+    ):
+        super().__init__(entries, addr, od_config_path)
 
     def sdo_list_files(self, node_id: Enum) -> list[str]:
         req_msg = SdoListFilesMessage(node_id.value)
