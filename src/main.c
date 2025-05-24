@@ -23,13 +23,23 @@
 #include <string.h>
 #include <sys/epoll.h>
 #include <sys/reboot.h>
+#include <sys/stat.h>
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <wordexp.h>
 
-#define NODE_CONFIG_PATH      "/etc/oresat/node.conf"
-#define OD_CONFIG_PATH        "/etc/oresat/od.conf"
+#define CACHE_BASE_ROOT_PATH "/var/cache/oresat"
+#define CACHE_BASE_HOME_PATH "~/.cache/oresat"
+
+#define FREAD_CACHE_DIR       "fread"
+#define FREAD_CACHE_ROOT_PATH CACHE_BASE_ROOT_PATH "/" FREAD_CACHE_DIR
+#define FREAD_CACHE_ROOT_HOME CACHE_BASE_HOME_PATH "/" FREAD_CACHE_DIR
+
+#define FWRITE_CACHE_DIR       "fwrite"
+#define FWRITE_CACHE_ROOT_PATH CACHE_BASE_ROOT_PATH "/" FWRITE_CACHE_DIR
+#define FWRITE_CACHE_ROOT_HOME CACHE_BASE_HOME_PATH "/" FWRITE_CACHE_DIR
+
 #define DEFAULT_NODE_ID       0x7C
 #define DEFAULT_CAN_INTERFACE "can0"
 
@@ -43,20 +53,20 @@
 #define SDO_CLI_TIMEOUT_TIME 500
 #define SDO_CLI_BLOCK        false
 
-static CO_t *CO = NULL;
+static CO_t *co = NULL;
 static OD_t *od = NULL;
 static CO_config_t config;
 static CO_config_t base_config;
 static fcache_t *fread_cache = NULL;
 static fcache_t *fwrite_cache = NULL;
+static uint8_t node_id = DEFAULT_NODE_ID;
+static CO_epoll_t ep_rt;
+static volatile sig_atomic_t CO_endProgram = 0;
 
-static uint8_t CO_activeNodeId = DEFAULT_NODE_ID;
-static CO_epoll_t epRT;
 static void *rt_thread(void *arg);
 static void *ipc_responder_thread(void *arg);
 static void *ipc_consumer_thread(void *arg);
 static void *ipc_monitor_thread(void *arg);
-static volatile sig_atomic_t CO_endProgram = 0;
 
 static void sigHandler(int sig) {
     (void)sig;
@@ -65,7 +75,7 @@ static void sigHandler(int sig) {
 
 static void EmergencyRxCallback(const uint16_t ident, const uint16_t errorCode, const uint8_t errorRegister,
                                 const uint8_t errorBit, const uint32_t infoCode) {
-    int16_t nodeIdRx = ident ? (ident & 0x7F) : CO_activeNodeId;
+    int16_t nodeIdRx = ident ? (ident & 0x7F) : node_id;
 
     log_printf(LOG_NOTICE, DBG_EMERGENCY_RX, nodeIdRx, errorCode, errorRegister, errorBit, infoCode);
     ipc_broadcast_emcy(nodeIdRx, errorCode, infoCode);
@@ -103,13 +113,10 @@ static void printUsage(char *progName) {
     printf("  -i <interface>      CAN interface (default: " DEFAULT_CAN_INTERFACE ")\n");
     printf("  -m                  Node is the network manager node\n");
     printf("  -n <node-id>        CANopen node id (default: 0x%X)\n", DEFAULT_NODE_ID);
-    printf("  -o <path>           Load od config (default: " OD_CONFIG_PATH ")\n");
     printf("  -p <priority>       Real-time priority of RT thread (1 .. 99). If not set or\n");
     printf("                      set to -1, then normal scheduler is used for RT thread\n");
     printf("                      (default: -1).\n");
     printf("  -v                  Verbose logging\n");
-    printf("\n");
-    printf("Most of these arguments can be set in " NODE_CONFIG_PATH " as well.\n");
 }
 
 static void fix_cob_ids(OD_t *od, uint8_t node_id) {
@@ -151,29 +158,29 @@ int main(int argc, char *argv[]) {
     CO_CANptrSocketCan_t CANptr = {0};
     int opt;
     bool firstRun = true;
-    char CANdevice[20] = DEFAULT_CAN_INTERFACE;
-    char dcf_path[PATH_MAX] = {0};
+    char can_interface[20] = DEFAULT_CAN_INTERFACE;
     bool loaded_od_conf = false;
     bool network_manager_node = false;
+    char od_path[256] = {0};
+    char node_path[256];
 
-    node_config_load(NODE_CONFIG_PATH, CANdevice, &CO_activeNodeId, &network_manager_node);
+    get_default_node_config_path(node_path, 256);
+    get_default_od_config_path(od_path, 256);
+    int r = node_config_load(od_path, can_interface, &node_id, &network_manager_node);
 
-    while ((opt = getopt(argc, argv, "hi:mn:o:p:v")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:mn:p:v")) != -1) {
         switch (opt) {
         case 'h':
             printUsage(argv[0]);
             exit(EXIT_SUCCESS);
         case 'i':
-            strncpy(CANdevice, optarg, strlen(optarg));
+            strncpy(can_interface, optarg, strlen(optarg));
             break;
         case 'm':
             network_manager_node = true;
             break;
         case 'n':
-            CO_activeNodeId = strtol(optarg, NULL, 16);
-            break;
-        case 'o':
-            strncpy(dcf_path, optarg, strlen(optarg));
+            node_id = strtol(optarg, NULL, 16);
             break;
         case 'p':
             rtPriority = strtol(optarg, NULL, 0);
@@ -187,6 +194,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    if (getuid() != 0) {
+        log_warning("not running as root");
+    }
+    if (r) {
+        log_info("loaded node settings from %s", od_path);
+    }
+
     if (rtPriority != -1 &&
         (rtPriority < sched_get_priority_min(SCHED_FIFO) || rtPriority > sched_get_priority_max(SCHED_FIFO))) {
         log_printf(LOG_CRIT, DBG_WRONG_PRIORITY, rtPriority);
@@ -198,37 +212,37 @@ int main(int argc, char *argv[]) {
 
     bool first_interface_check = true;
     do {
-        CANptr.can_ifindex = if_nametoindex(CANdevice);
+        CANptr.can_ifindex = if_nametoindex(can_interface);
         if ((first_interface_check) && (CANptr.can_ifindex == 0)) {
-            log_critical("can't find CAN interface %s", CANdevice);
+            log_critical("can't find CAN interface %s", can_interface);
             first_interface_check = false;
         }
         sleep_ms(250);
     } while (CANptr.can_ifindex == 0);
     if (!first_interface_check) {
-        log_info("found CAN interface %s", CANdevice);
+        log_info("found CAN interface %s", can_interface);
     }
 
-    if (dcf_path[0] != '\0') {
-        if (od_config_load(dcf_path, &od, !network_manager_node) < 0) {
-            log_critical("failed to load app od objects from %s", dcf_path);
+    if (od_path[0] != '\0') {
+        if (od_config_load(od_path, &od, !network_manager_node) < 0) {
+            log_critical("failed to load od objects from %s", od_path);
         } else {
-            log_info("loading app od objects from %s", dcf_path);
+            log_info("loaded od objects from %s", od_path);
             loaded_od_conf = true;
         }
     }
     if (od == NULL) {
-        log_info("using internal od objects only", dcf_path);
+        log_info("using internal od objects only", od_path);
         od = OD;
         loaded_od_conf = false;
     }
-    fix_cob_ids(od, CO_activeNodeId);
+    fix_cob_ids(od, node_id);
     fill_config(od, &config);
     fill_config(OD, &base_config);
 
     uint32_t heapMemoryUsed = 0;
-    CO = CO_new(&config, &heapMemoryUsed);
-    if (CO == NULL) {
+    co = CO_new(&config, &heapMemoryUsed);
+    if (co == NULL) {
         log_printf(LOG_CRIT, DBG_GENERAL, "CO_new(), heapMemoryUsed=", heapMemoryUsed);
         exit(EXIT_FAILURE);
     }
@@ -247,25 +261,24 @@ int main(int argc, char *argv[]) {
         log_printf(LOG_CRIT, DBG_GENERAL, "CO_epoll_create(main), err=", err);
         exit(EXIT_FAILURE);
     }
-    err = CO_epoll_create(&epRT, TMR_THREAD_INTERVAL_US);
+    err = CO_epoll_create(&ep_rt, TMR_THREAD_INTERVAL_US);
     if (err != CO_ERROR_NO) {
         log_printf(LOG_CRIT, DBG_GENERAL, "CO_epoll_create(RT), err=", err);
         exit(EXIT_FAILURE);
     }
-    CANptr.epoll_fd = epRT.epoll_fd;
+    CANptr.epoll_fd = ep_rt.epoll_fd;
 
     if (network_manager_node == false) {
         if (getuid() == 0) {
-            fread_cache = fcache_init("/var/cache/oresat/fread");
-            fwrite_cache = fcache_init("/var/cache/oresat/fwrite");
+            fread_cache = fcache_init(FREAD_CACHE_ROOT_PATH);
+            fwrite_cache = fcache_init(FWRITE_CACHE_ROOT_PATH);
         } else {
-            log_warning("not running as root");
-            char tmp_path[PATH_MAX];
             wordexp_t exp_result;
-            wordexp("~/.cache/oresat", &exp_result, 0);
-            sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fread");
+            char tmp_path[256];
+            wordexp(CACHE_BASE_HOME_PATH, &exp_result, 0);
+            sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], FREAD_CACHE_DIR);
             fread_cache = fcache_init(tmp_path);
-            sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], "fwrite");
+            sprintf(tmp_path, "%s/%s", exp_result.we_wordv[0], FWRITE_CACHE_DIR);
             fwrite_cache = fcache_init(tmp_path);
             wordfree(&exp_result);
         }
@@ -284,15 +297,15 @@ int main(int argc, char *argv[]) {
         uint32_t errInfo;
 
         if (!firstRun) {
-            CO_LOCK_OD(CO->CANmodule);
-            CO->CANmodule->CANnormal = false;
-            CO_UNLOCK_OD(CO->CANmodule);
+            CO_LOCK_OD(co->CANmodule);
+            co->CANmodule->CANnormal = false;
+            CO_UNLOCK_OD(co->CANmodule);
         }
 
         CO_CANsetConfigurationMode((void *)&CANptr);
-        CO_CANmodule_disable(CO->CANmodule);
+        CO_CANmodule_disable(co->CANmodule);
 
-        err = CO_CANinit(CO, (void *)&CANptr, 0 /* bit rate not used */);
+        err = CO_CANinit(co, (void *)&CANptr, 0 /* bit rate not used */);
         if (err != CO_ERROR_NO) {
             log_printf(LOG_CRIT, DBG_CAN_OPEN, "CO_CANinit()", err);
             programExit = EXIT_FAILURE;
@@ -301,8 +314,8 @@ int main(int argc, char *argv[]) {
         }
 
         errInfo = 0;
-        err = CO_CANopenInit(CO, NULL, NULL, od, NULL, NMT_CONTROL, FIRST_HB_TIME, SDO_SRV_TIMEOUT_TIME,
-                             SDO_CLI_TIMEOUT_TIME, SDO_CLI_BLOCK, CO_activeNodeId, &errInfo);
+        err = CO_CANopenInit(co, NULL, NULL, od, NULL, NMT_CONTROL, FIRST_HB_TIME, SDO_SRV_TIMEOUT_TIME,
+                             SDO_CLI_TIMEOUT_TIME, SDO_CLI_BLOCK, node_id, &errInfo);
         if (err != CO_ERROR_NO) {
             if (err == CO_ERROR_OD_PARAMETERS) {
                 log_printf(LOG_CRIT, DBG_OD_ENTRY, errInfo);
@@ -314,22 +327,22 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        CO_epoll_initCANopenMain(&epMain, CO);
-        if (!CO->nodeIdUnconfigured) {
+        CO_epoll_initCANopenMain(&epMain, co);
+        if (!co->nodeIdUnconfigured) {
             if (errInfo != 0) {
-                CO_errorReport(CO->em, CO_EM_INCONSISTENT_OBJECT_DICT, CO_EMC_DATA_SET, errInfo);
+                CO_errorReport(co->em, CO_EM_INCONSISTENT_OBJECT_DICT, CO_EMC_DATA_SET, errInfo);
             }
             if (config.CNT_EM) {
-                CO_EM_initCallbackRx(CO->em, EmergencyRxCallback);
+                CO_EM_initCallbackRx(co->em, EmergencyRxCallback);
             }
-            CO_NMT_initCallbackChanged(CO->NMT, NmtChangedCallback);
+            CO_NMT_initCallbackChanged(co->NMT, NmtChangedCallback);
             if (config.CNT_HB_CONS) {
-                CO_HBconsumer_initCallbackNmtChanged(CO->HBcons, 0, NULL, HeartbeatNmtChangedCallback);
+                CO_HBconsumer_initCallbackNmtChanged(co->HBcons, 0, NULL, HeartbeatNmtChangedCallback);
             }
 
-            log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "communication reset");
+            log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, node_id, "communication reset");
         } else {
-            log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "node-id not initialized");
+            log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, node_id, "node-id not initialized");
         }
 
         if (firstRun) {
@@ -373,7 +386,7 @@ int main(int argc, char *argv[]) {
         }
 
         errInfo = 0;
-        err = CO_CANopenInitPDO(CO, CO->em, od, CO_activeNodeId, &errInfo);
+        err = CO_CANopenInitPDO(co, co->em, od, node_id, &errInfo);
         if (err != CO_ERROR_NO) {
             if (err == CO_ERROR_OD_PARAMETERS) {
                 log_printf(LOG_CRIT, DBG_OD_ENTRY, errInfo);
@@ -385,20 +398,20 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        CO_CANsetNormalMode(CO->CANmodule);
+        CO_CANsetNormalMode(co->CANmodule);
 
-        log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "running ...");
+        log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, node_id, "running ...");
 
         reset = CO_RESET_NOT;
         while (reset == CO_RESET_NOT && CO_endProgram == 0) {
             CO_epoll_wait(&epMain);
-            CO_epoll_processMain(&epMain, CO, false, &reset);
+            CO_epoll_processMain(&epMain, co, false, &reset);
             CO_epoll_processLast(&epMain);
 
             static uint32_t last_check = 0;
             uint32_t uptime_s = get_uptime_s();
             if (uptime_s != last_check) {
-                ipc_broadcast_bus_status(CO);
+                ipc_broadcast_bus_status(co);
                 last_check = uptime_s;
             }
         }
@@ -433,25 +446,25 @@ int main(int argc, char *argv[]) {
         fcache_free(fwrite_cache);
     }
 
-    CO_epoll_close(&epRT);
+    CO_epoll_close(&ep_rt);
     CO_epoll_close(&epMain);
     CO_CANsetConfigurationMode((void *)&CANptr);
-    CO_delete(CO);
+    CO_delete(co);
 
     if (loaded_od_conf && (od != NULL)) {
         od_config_free(od, !network_manager_node);
     }
 
-    log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, CO_activeNodeId, "finished");
+    log_printf(LOG_INFO, DBG_CAN_OPEN_INFO, node_id, "finished");
     exit(programExit);
 }
 
 static void *rt_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        CO_epoll_wait(&epRT);
-        CO_epoll_processRT(&epRT, CO, true);
-        CO_epoll_processLast(&epRT);
+        CO_epoll_wait(&ep_rt);
+        CO_epoll_processRT(&ep_rt, co, true);
+        CO_epoll_processLast(&ep_rt);
     }
     return NULL;
 }
@@ -459,7 +472,7 @@ static void *rt_thread(void *arg) {
 static void *ipc_responder_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_responder_process(CO, od, &config, fread_cache);
+        ipc_responder_process(co, od, &config, fread_cache);
     }
     return NULL;
 }
@@ -467,7 +480,7 @@ static void *ipc_responder_thread(void *arg) {
 static void *ipc_consumer_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_consumer_process(CO, od, &base_config, &config);
+        ipc_consumer_process(co, od, &base_config, &config);
     }
     return NULL;
 }

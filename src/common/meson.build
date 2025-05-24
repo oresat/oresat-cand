@@ -12,6 +12,9 @@ libcommon = shared_library(
   'common',
   libcommon_files,
   include_directories: libcommon_includes,
+  dependencies: [
+    dependency('zlib'),
+  ],
   install : false,
 )
 

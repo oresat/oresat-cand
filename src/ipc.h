@@ -20,6 +20,7 @@
 #define IPC_MSG_ID_SDO_READ_FILE  0x0A
 #define IPC_MSG_ID_SDO_WRITE_FILE 0x0B
 #define IPC_MSG_ID_SDO_LIST_FILES 0x0C
+#define IPC_MSG_ID_CONFIG         0x0D
 
 #define IPC_MSG_ID_ERROR            0x80
 #define IPC_MSG_ID_ERROR_UNKNOWN_ID 0x81

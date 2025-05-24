@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <zlib.h>
 
 void sleep_ms(uint32_t ms) {
     struct timespec ts;
@@ -156,6 +157,63 @@ int move_file(char *src, char *dest) {
         }
     }
     return r;
+}
+
+int get_file_crc32(char *file_path, uint32_t *crc) {
+    if (!file_path || !crc) {
+        return -EINVAL;
+    }
+
+    FILE *fp = fopen(file_path, "r");
+    if (!fp) {
+        return -errno;
+    }
+
+    int r = 0;
+    void *file_data = NULL;
+
+    fseek(fp, 0, SEEK_END);
+    long file_size = ftell(fp);
+    if (file_size <= 0) {
+        r = -errno;
+        goto crc_end;
+    }
+    fseek(fp, 0, SEEK_SET);
+
+    file_data = malloc(file_size);
+    if (!file_data) {
+        r = -ENOMEM;
+        goto crc_end;
+    }
+
+    if (fread(file_data, 1, file_size, fp) != (size_t)file_size) {
+        r = -1;
+        goto crc_end;
+    }
+
+    if (r == 0) {
+        uint32_t tmp = crc32(0L, Z_NULL, 0);
+        tmp = crc32(tmp, file_data, file_size);
+        *crc = tmp;
+    }
+
+crc_end:
+    if (file_data) {
+        free(file_data);
+    }
+    if (fp) {
+        fclose(fp);
+    }
+    return r;
+}
+
+bool check_file_crc32_match(char *file_path_1, char *file_path_2) {
+    uint32_t crc1;
+    uint32_t crc2;
+    if (get_file_crc32(file_path_1, &crc1) || get_file_crc32(file_path_2, &crc2)) {
+        return false;
+    }
+    return crc1 == crc2;
 }
 
 bool is_dir(char *path) {

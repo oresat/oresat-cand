@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <unistd.h>
+#include <wordexp.h>
 #define CO_PROGMEM
 #define OD_DEFINITION
 #include "301/CO_ODinterface.h"
@@ -11,6 +13,17 @@
 #include "load_configs.h"
 #include "logger.h"
 #include "str2buf.h"
+
+#define CONFIG_BASE_ROOT_PATH "/etc/oresat"
+#define CONFIG_BASE_HOME_PATH "~/.config/oresat"
+
+#define NODE_CONFIG_FILE      "node.conf"
+#define NODE_CONFIG_ROOT_PATH CONFIG_BASE_ROOT_PATH "/" NODE_CONFIG_FILE
+#define NODE_CONFIG_HOME_PATH CONFIG_BASE_HOME_PATH "/" NODE_CONFIG_FILE
+
+#define OD_CONFIG_FILE      "od.csv"
+#define OD_CONFIG_ROOT_PATH CONFIG_BASE_ROOT_PATH "/" OD_CONFIG_FILE
+#define OD_CONFIG_HOME_PATH CONFIG_BASE_HOME_PATH "/" OD_CONFIG_FILE
 
 #define OBJECTS_COMMENT ";objects="
 
@@ -60,14 +73,52 @@ static int fill_entry_subindex(OD_entry_t *entry, struct tmp_data_t *data, int s
 static bool parse_int_key(const char *string, int *value);
 static uint8_t get_access_attr(char *access_type);
 
-void node_config_load(const char *file_path, char *can_interface, uint8_t *node_id, bool *network_manager) {
+int get_default_node_config_path(char *path, size_t path_max) {
+    int r = -1;
+    if (getuid() == 0) {
+        if ((strlen(NODE_CONFIG_ROOT_PATH) + 1) < path_max) {
+            strncpy(path, NODE_CONFIG_ROOT_PATH, strlen(NODE_CONFIG_ROOT_PATH) + 1);
+            r = 0;
+        }
+    } else {
+        wordexp_t exp_result;
+        wordexp(NODE_CONFIG_HOME_PATH, &exp_result, 0);
+        if ((strlen(exp_result.we_wordv[0]) + 1) < path_max) {
+            strncpy(path, exp_result.we_wordv[0], strlen(exp_result.we_wordv[0]) + 1);
+            r = 0;
+        }
+        wordfree(&exp_result);
+    }
+    return r;
+}
+
+int get_default_od_config_path(char *path, size_t path_max) {
+    int r = -1;
+    if (getuid() == 0) {
+        if ((strlen(OD_CONFIG_ROOT_PATH) + 1) < path_max) {
+            strncpy(path, OD_CONFIG_ROOT_PATH, strlen(OD_CONFIG_ROOT_PATH) + 1);
+            r = 0;
+        }
+    } else {
+        wordexp_t exp_result;
+        wordexp(OD_CONFIG_HOME_PATH, &exp_result, 0);
+        if ((strlen(exp_result.we_wordv[0]) + 1) < path_max) {
+            strncpy(path, exp_result.we_wordv[0], strlen(exp_result.we_wordv[0]) + 1);
+            r = 0;
+        }
+        wordfree(&exp_result);
+    }
+    return r;
+}
+
+int node_config_load(const char *file_path, char *can_interface, uint8_t *node_id, bool *network_manager) {
     if (!file_path) {
-        return;
+        return -EINVAL;
     }
 
     FILE *fp = fopen(file_path, "r");
     if (fp == NULL) {
-        return;
+        return -EINVAL;
     }
 
     char *line = NULL;
@@ -91,6 +142,7 @@ void node_config_load(const char *file_path, char *can_interface, uint8_t *node_
     }
 
     fclose(fp);
+    return 0;
 }
 
 int od_config_load(const char *file_path, OD_t **od, bool extend_internal_od) {

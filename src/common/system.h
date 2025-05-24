@@ -20,6 +20,8 @@ bool is_file(char *file_path);
 bool is_file_in_dir(char *dir_path, char *file_name);
 int copy_file(char *src, char *dest);
 int move_file(char *src, char *dest);
+int get_file_crc32(char *file_path, uint32_t *crc);
+bool check_file_crc32_match(char *file_path_1, char *file_path_2);
 
 bool is_dir(char *dir_path);
 int mkdir_path(char *dir_path, mode_t mode);
