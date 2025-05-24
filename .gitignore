@@ -7,10 +7,14 @@ build/
 # clangd
 .cache/
 
+# configs
+*.conf
+*.csv
+
 # oresat-configs generated files
 OD.*
 *.dcf
-*.conf
+*.dbc
 
 # debian package
 debian/.debhelper/

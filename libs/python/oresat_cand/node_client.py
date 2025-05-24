@@ -4,8 +4,9 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from threading import Lock, Thread
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 import zmq
 from zmq.utils.monitor import recv_monitor_message
@@ -43,8 +44,8 @@ class BusState(Enum):
 
 @dataclass
 class LocalData:
-    value: Union[int, float, str, bytes, None]
-    write_cb: Optional[Callable[[Any], None]] = None
+    value: int | float | str | bytes | None
+    write_cb: Callable[[Any], None] | None = None
 
 
 class NodeClientBase:
@@ -58,8 +59,8 @@ class NodeClientBase:
 
         self._connected = False
         self._bus_state = BusState.NOT_FOUND
-        self._emcy_cb: Optional[Callable] = None
-        self._hb_cb: Optional[Callable] = None
+        self._emcy_cb: Callable | None = None
+        self._hb_cb: Callable | None = None
 
         self._context = zmq.Context()
 
@@ -113,10 +114,6 @@ class NodeClientBase:
                 logging.debug("CONSUME: " + msg_recv.hex().upper())
 
             if msg_recv[0] == OdWriteMessage.id:
-                if len(msg_recv) < OdWriteMessage.size:
-                    logging.debug(f"invalid od write message {msg_recv.hex().upper()}")
-                    continue
-
                 try:
                     msg_req = OdWriteMessage.unpack(msg_recv)
                     entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
@@ -127,7 +124,7 @@ class NodeClientBase:
                     if self._data[entry].write_cb is not None:
                         self._data[entry].write_cb(value)
                 except Exception as e:
-                    logging.error(f"write callback error {entry.name} {e}")
+                    logging.error(f"write callback error: {e}")
             elif msg_recv[0] == HbRecvMessage.id:
                 if self._hb_cb:
                     try:
@@ -181,8 +178,8 @@ class NodeClientBase:
     def send_emcy(self, code: int, info: int = 0):
         self._broadcast(EmcySendMessage(code, info))
 
-    def send_tpdo(self, tpdo: Union[int, Enum, list[int], list[Enum]]):
-        def _send_tpdo(num: Union[int, Enum]):
+    def send_tpdo(self, tpdo: int | Enum | list[int] | list[Enum]):
+        def _send_tpdo(num: int | Enum):
             if isinstance(num, Enum):
                 num = num.value
             self._broadcast(TpdoSendMessage(num))
@@ -223,12 +220,13 @@ class NodeClient(NodeClientBase):
     def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
         super().__init__(entries, addr, debug)
 
-    def add_file(self, file_path: str):
-        if file_path[0] != "/":
-            raise ValueError("file_path must be an absolute path")
-        if not os.path.isfile(file_path):
-            raise FileNotFoundError(f"{file_path} not found")
-        req_msg = AddFileMessage(file_path)
+    def add_file(self, file: str | Path):
+        if isinstance(file, str):
+            file = Path(file)
+        file = file.absolute()
+        if not file.exists():
+            raise FileNotFoundError(f"{file} not found")
+        req_msg = AddFileMessage(str(file))
         self._send_and_recv(req_msg)
 
 
@@ -236,38 +234,49 @@ class ManagerNodeClient(NodeClientBase):
     def __init__(self, entries: Entry, addr: str = "localhost", debug: bool = False):
         super().__init__(entries, addr, debug)
 
-    def sdo_list_files(self, node_id: int) -> list[str]:
-        req_msg = SdoListFilesMessage(node_id)
+    def sdo_list_files(self, node_id: Enum) -> list[str]:
+        req_msg = SdoListFilesMessage(node_id.value)
         res_msg = self._send_and_recv(req_msg)
         return res_msg.files
 
-    def sdo_write(self, node_id: int, entry: Entry, value: Any):
+    def sdo_write_raw(self, node_id: int, index: int, subindex: int, raw: bytes):
+        req_msg = SdoWriteMessage(node_id, index, subindex, raw)
+        self._send_and_recv(req_msg)
+
+    def sdo_write(self, node_id: Enum, entry: Entry, value: Any):
         if isinstance(value, Enum):
             value = value.value
         raw = entry.encode(value)
-        req_msg = SdoWriteMessage(node_id, entry.index, entry.subindex, raw)
+        self.sdo_write_raw(node_id.value, entry.index, entry.subindex, raw)
+
+    def sdo_write_file(self, node_id: Enum, local_file: str | Path, remote_file: str = ""):
+        if isinstance(local_file, Path):
+            local_file = str(local_file)
+        req_msg = SdoWriteFileMessage(node_id.value, local_file, remote_file)
         self._send_and_recv(req_msg)
 
-    def sdo_write_file(self, node_id: int, local_file_path: str, remote_file_path: str = ""):
-        req_msg = SdoWriteFileMessage(node_id, local_file_path, remote_file_path)
-        self._send_and_recv(req_msg)
-
-    def sdo_read(self, node_id: int, entry: Entry, use_enum: bool = True) -> Any:
-        req_msg = SdoReadMessage(node_id, entry.index, entry.subindex, b"")
+    def sdo_read_raw(self, node_id: int, index: int, subindex: int) -> bytes:
+        req_msg = SdoReadMessage(node_id, index, subindex, b"")
         res_msg = self._send_and_recv(req_msg)
-        value = entry.decode(res_msg.raw)
+        return res_msg.raw
+
+    def sdo_read(self, node_id: Enum, entry: Entry, use_enum: bool = True) -> Any:
+        raw = self.sdo_read_raw(node_id.value, entry.index, entry.subindex)
+        value = entry.decode(raw)
         if use_enum and entry.enum and isinstance(value, int) and value in entry.enum:
             value = entry.enum(value)
         return value
 
     def sdo_read_file(
-        self, node_id: int, remote_file_path: str, local_file_path: str = "/tmp"
+        self, node_id: Enum, remote_file: str, local_file: str | Path = "/tmp"
     ) -> str:
-        if os.path.isdir(local_file_path):
-            local_file_path = os.path.join(local_file_path, os.path.basename(remote_file_path))
-        req_msg = SdoReadFileMessage(node_id, remote_file_path, local_file_path)
+        if isinstance(local_file, Path):
+            local_file = str(local_file)
+        if os.path.isdir(local_file):
+            local_file = os.path.join(local_file, os.path.basename(remote_file))
+        req_msg = SdoReadFileMessage(node_id.value, remote_file, local_file)
         self._send_and_recv(req_msg)
-        return local_file_path
+        return local_file
 
     def add_heartbeat_callback(self, hb_cb: Callable[[int, NodeState], None]):
         self._hb_cb = hb_cb
