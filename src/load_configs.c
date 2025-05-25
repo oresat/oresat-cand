@@ -111,6 +111,19 @@ int get_default_od_config_path(char *path, size_t path_max) {
     return r;
 }
 
+int make_node_config(char *path) {
+    if (!path) {
+        return -EINVAL;
+    }
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        return -errno;
+    }
+    fprintf(fp, "[Node]\nNodeId=0x7C\nNetworkManager=false\n");
+    fclose(fp);
+    return 0;
+}
+
 int node_config_load(const char *file_path, char *can_interface, uint8_t *node_id, bool *network_manager) {
     if (!file_path) {
         return -EINVAL;

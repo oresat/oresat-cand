@@ -166,7 +166,13 @@ int main(int argc, char *argv[]) {
 
     get_default_node_config_path(node_path, 256);
     get_default_od_config_path(od_path, 256);
-    int r = node_config_load(od_path, can_interface, &node_id, &network_manager_node);
+
+    int r = -ENOENT;
+    if (is_file(node_path)) {
+        r = node_config_load(od_path, can_interface, &node_id, &network_manager_node);
+    } else {
+        make_node_config(node_path);
+    }
 
     while ((opt = getopt(argc, argv, "hi:mn:p:v")) != -1) {
         switch (opt) {
