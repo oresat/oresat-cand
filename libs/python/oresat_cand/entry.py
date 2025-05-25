@@ -22,7 +22,7 @@ class DataType(DataTypeDef, Enum):
     UINT32 = 0x7, (int,), "I"
     FLOAT32 = 0x8, (float,), "f"
     STR = 0x9, (str,), ""
-    OCTET_STR = 0xA, (bytes, bytearray), ""
+    BYTES = 0xA, (bytes, bytearray), ""
     DOMAIN = 0xF, (bytes, bytearray, type(None)), ""
     FLOAT64 = 0x11, (float,), "d"
     INT64 = 0x15, (int,), "q"
@@ -104,7 +104,7 @@ class Entry(EntryDef, Enum):
         try:
             if self.data_type == DataType.STR:
                 value = raw.decode()
-            elif self.data_type == DataType.OCTET_STR:
+            elif self.data_type == DataType.BYTES:
                 value = raw
             elif self.data_type != DataType.DOMAIN:
                 value = struct.unpack("<" + self.data_type.fmt, raw)[0]
@@ -130,7 +130,7 @@ class Entry(EntryDef, Enum):
             raw = b""
             if self.data_type == DataType.STR:
                 raw = value.encode()
-            elif self.data_type == DataType.OCTET_STR:
+            elif self.data_type == DataType.BYTES:
                 raw = value
             elif self.data_type == DataType.DOMAIN:
                 if value is not None:
