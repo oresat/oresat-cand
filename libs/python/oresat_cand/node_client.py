@@ -123,8 +123,10 @@ class NodeClientBase:
         while True:
             msg_recv = self._consume_socket.recv()
             logger.debug("CONSUME: " + msg_recv.hex().upper())
+            if len(msg_recv) < 3:
+                continue  # invalid msg
 
-            if msg_recv[0] == OdWriteMessage.id:
+            if msg_recv[1] == OdWriteMessage.id:
                 try:
                     msg_req = OdWriteMessage.unpack(msg_recv)
                     entry = self._lookup_entry[(msg_req.index, msg_req.subindex)]
@@ -136,21 +138,21 @@ class NodeClientBase:
                         self._data[entry].write_cb(value)
                 except Exception as e:
                     logger.error(f"write callback error: {e}")
-            elif msg_recv[0] == HbRecvMessage.id:
+            elif msg_recv[1] == HbRecvMessage.id:
                 if self._hb_cb:
                     try:
                         msg_req = HbRecvMessage.unpack(msg_recv)
                         self._hb_cb(msg_req.node_id, NodeState(msg_req.state))
                     except Exception as e:
                         logger.error(f"heartbeat callback error: {e}")
-            elif msg_recv[0] == EmcyRecvMessage.id:
+            elif msg_recv[1] == EmcyRecvMessage.id:
                 if self._emcy_cb:
                     try:
                         msg_req = EmcyRecvMessage.unpack(msg_recv)
                         self._emcy_cb(msg_req.node_id, msg_req.code, msg_req.info)
                     except Exception as e:
                         logger.error(f"emcy callback error: {e}")
-            elif msg_recv[0] == BusStateMessage.id:
+            elif msg_recv[1] == BusStateMessage.id:
                 try:
                     msg_req = BusStateMessage.unpack(msg_recv)
                     self._bus_state = BusState(msg_req.state)
