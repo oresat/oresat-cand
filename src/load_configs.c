@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -119,7 +120,7 @@ int make_node_config(char *path) {
     if (!fp) {
         return -errno;
     }
-    fprintf(fp, "[Node]\nNodeId=0x7C\nNetworkManager=false\n");
+    fprintf(fp, "[Node]CanInterface=can0\nNodeId=0x7C\nNetworkManager=false\n");
     fclose(fp);
     return 0;
 }
@@ -148,9 +149,11 @@ int node_config_load(const char *file_path, char *can_interface, uint8_t *node_i
             parse_int_key(&line[strlen("NodeId=")], &tmp);
             *node_id = tmp;
         } else if (!strncmp(line, "NetworkManager=", strlen("NetworkManager="))) {
-            int tmp = 0;
-            parse_int_key(&line[strlen("NetworkManager=")], &tmp);
-            *network_manager = (bool)tmp;
+            size_t size = strlen("NetworkManager=");
+            for (unsigned int i = size; i < (strlen(line) - size); i++) {
+                line[i] = tolower(line[i]);
+            }
+            *network_manager = (bool)strncpy(&line[size], "true", strlen(line) - size + 1);
         }
     }
 

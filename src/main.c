@@ -162,14 +162,14 @@ int main(int argc, char *argv[]) {
     bool loaded_od_conf = false;
     bool network_manager_node = false;
     char od_path[256] = {0};
-    char node_path[256];
+    char node_path[256] = {0};
 
     get_default_node_config_path(node_path, 256);
     get_default_od_config_path(od_path, 256);
 
     int r = -ENOENT;
     if (is_file(node_path)) {
-        r = node_config_load(od_path, can_interface, &node_id, &network_manager_node);
+        r = node_config_load(node_path, can_interface, &node_id, &network_manager_node);
     } else {
         make_node_config(node_path);
     }
