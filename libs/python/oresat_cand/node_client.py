@@ -277,6 +277,7 @@ class ManagerNodeClient(NodeClientBase):
 
     def sdo_read_raw(self, node_id: int, index: int, subindex: int) -> bytes:
         req_msg = SdoReadMessage(node_id, index, subindex, b"")
+        print(req_msg)
         res_msg = self._send_and_recv(req_msg)
         return res_msg.raw
 
