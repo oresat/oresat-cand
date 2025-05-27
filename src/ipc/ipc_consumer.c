@@ -3,21 +3,24 @@
 #include "ipc_broadcaster.h"
 #include "ipc_msg.h"
 #include "logger.h"
+#include "system.h"
+#include <libgen.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <zmq.h>
 
 #define LOG_CONSUMER "consumer: "
 
 static void *consumer = NULL;
 
-static int ipc_consumer_emcy_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co);
-static int ipc_consumer_tpdo_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co, CO_config_t *base_config,
-                                  CO_config_t *config);
-static int ipc_consumer_sync_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co, CO_config_t *config);
-static int ipc_consumer_od_write(uint8_t *buffer_in, int buffer_in_recv, OD_t *od);
-static int ipc_consumer_config(uint8_t *buffer_in, int buffer_in_recv, bool *reset);
+static void ipc_consumer_emcy_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co);
+static void ipc_consumer_tpdo_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co, CO_config_t *base_config,
+                                   CO_config_t *config);
+static void ipc_consumer_sync_send(CO_t *co, CO_config_t *config);
+static void ipc_consumer_od_write(uint8_t *buffer_in, int buffer_in_recv, OD_t *od);
+static void ipc_consumer_config(uint8_t *buffer_in, int buffer_in_recv, char *od_config_path, bool *reset);
 
 int ipc_conumer_init(void *context) {
     if (!context) {
@@ -31,16 +34,17 @@ int ipc_conumer_init(void *context) {
     return 0;
 }
 
-void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config, bool *reset) {
-    if (!co || !od || !base_config || !config) {
+void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config, char *od_config_path,
+                          bool *reset) {
+    if (!co || !od || !base_config || !config || !od_config_path) {
         log_error(LOG_CONSUMER "ipc process null arg");
         return;
     }
 
-    static uint8_t buffer_in_full[IPC_BUFFER_SIZE];
+    static uint8_t buffer_in_full[IPC_MSG_MAX_LEN];
     int buffer_in_recv = 0;
 
-    buffer_in_recv = zmq_recv(consumer, buffer_in_full, IPC_BUFFER_SIZE, 0);
+    buffer_in_recv = zmq_recv(consumer, buffer_in_full, IPC_MSG_MAX_LEN, 0);
     if (buffer_in_recv <= 0) {
         return;
     }
@@ -59,10 +63,10 @@ void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_confi
         ipc_consumer_od_write(buffer_in, buffer_in_recv, od);
         break;
     case IPC_MSG_ID_SYNC_SEND:
-        ipc_consumer_sync_send(buffer_in, buffer_in_recv, co, config);
+        ipc_consumer_sync_send(co, config);
         break;
     case IPC_MSG_ID_CONFIG:
-        ipc_consumer_config(buffer_in, buffer_in_recv, reset);
+        ipc_consumer_config(buffer_in, buffer_in_recv, od_config_path, reset);
         break;
     default:
         break;
@@ -73,8 +77,7 @@ void ipc_conumer_free(void) {
     zmq_close(consumer);
 }
 
-static int ipc_consumer_emcy_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co) {
-    int r = -EINVAL;
+static void ipc_consumer_emcy_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co) {
     if (!co) {
         if (buffer_in_recv == sizeof(ipc_msg_emcy_send_t)) {
             ipc_msg_emcy_send_t msg_emcy_send;
@@ -85,12 +88,10 @@ static int ipc_consumer_emcy_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *
             log_error(LOG_CONSUMER "emcy send message size error");
         }
     }
-    return r;
 }
 
-static int ipc_consumer_tpdo_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co, CO_config_t *base_config,
-                                  CO_config_t *config) {
-    int r = -EINVAL;
+static void ipc_consumer_tpdo_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co, CO_config_t *base_config,
+                                   CO_config_t *config) {
     if (!co || !base_config || !config) {
         if (buffer_in_recv == sizeof(uint8_t)) {
             uint8_t number = buffer_in[0];
@@ -108,11 +109,9 @@ static int ipc_consumer_tpdo_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *
             log_error(LOG_CONSUMER "tpdo send message size error");
         }
     }
-    return r;
 }
 
-static int ipc_consumer_od_write(uint8_t *buffer_in, int buffer_in_recv, OD_t *od) {
-    int r = -EINVAL;
+static void ipc_consumer_od_write(uint8_t *buffer_in, int buffer_in_recv, OD_t *od) {
     if (!od) {
         if (buffer_in_recv > (int)sizeof(ipc_msg_od_t)) {
             ipc_msg_od_t msg_od;
@@ -121,31 +120,25 @@ static int ipc_consumer_od_write(uint8_t *buffer_in, int buffer_in_recv, OD_t *o
             OD_entry_t *entry = OD_find(od, msg_od.index);
             uint8_t *data = &buffer_in[sizeof(ipc_msg_od_t)];
             size_t data_len = buffer_in_recv - sizeof(ipc_msg_od_t);
-            OD_set_value(entry, msg_od.subindex, data, data_len, ipc_client_count() <= 1);
+            OD_set_value(entry, msg_od.subindex, data, data_len, ipc_clients_count() <= 1);
         } else {
             log_error(LOG_CONSUMER "od write message size error");
         }
     }
-    return r;
 }
 
-static int ipc_consumer_sync_send(uint8_t *buffer_in, int buffer_in_recv, CO_t *co, CO_config_t *config) {
-    int r = -EINVAL;
+static void ipc_consumer_sync_send(CO_t *co, CO_config_t *config) {
     if (!config || !co) {
         if (config->CNT_SYNC) {
             log_debug(LOG_CONSUMER "sync send");
             CO_SYNCsend(co->SYNC);
-            r = 0;
         } else {
             log_error(LOG_CONSUMER "sync send not valid for node");
-            r = -EPERM;
         }
     }
-    return r;
 }
 
-static int ipc_consumer_config(uint8_t *buffer_in, int buffer_in_recv, bool *reset) {
-    int r = -EINVAL;
+static void ipc_consumer_config(uint8_t *buffer_in, int buffer_in_recv, char *od_config_path, bool *reset) {
     if (buffer_in_recv > 1) {
         if (buffer_in[buffer_in_recv] != '\0') {
             buffer_in[buffer_in_recv] = '\0';
@@ -153,33 +146,27 @@ static int ipc_consumer_config(uint8_t *buffer_in, int buffer_in_recv, bool *res
         char *file_path = (char *)&buffer_in[1];
         if (is_file(file_path)) {
             int r;
-            size_t path_len = 256;
-            char path[path_len];
-            get_default_od_config_path(path, path_len);
-            log_debug(LOG_CONSUMER "od config: local %s | apps %s", path, file_path);
-            if (check_file_crc32_match(path, file_path)) {
+            log_debug(LOG_CONSUMER "od config: local %s | apps %s", od_config_path, file_path);
+            if (check_file_crc32_match(od_config_path, file_path)) {
                 log_info(LOG_CONSUMER "local od config matches apps");
             } else {
                 log_info(LOG_CONSUMER "local od config does not match apps");
-                char *path_copy = strdup(path);
+                char *path_copy = strdup(od_config_path);
                 mkdir_path(dirname(path_copy), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
                 free(path_copy);
-                r = copy_file(file_path, path);
+                r = copy_file(file_path, od_config_path);
                 if (r < 0) {
                     log_error(LOG_CONSUMER "failed to update local od config to apps");
                 } else {
                     log_info(LOG_CONSUMER "updated local od config to apps");
                     log_info(LOG_CONSUMER "resetting app to load new config");
                     *reset = true;
-                    r = 0;
                 }
             }
         } else {
             log_error(LOG_CONSUMER "file %s not found", file_path);
-            r = -ENOENT;
         }
     } else {
         log_error(LOG_CONSUMER "check config message size error");
     }
-    return r;
 }

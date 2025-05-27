@@ -17,6 +17,7 @@ libipc = shared_library(
     dependency('libzmq'),
     libcommon_dep,
     libcanopenlinux_dep,
+    libodextensions_dep,
   ],
   install: false,
 )

@@ -69,7 +69,7 @@ static volatile sig_atomic_t CO_endProgram = 0;
 static void *rt_thread(void *arg);
 static void *ipc_responder_thread(void *arg);
 static void *ipc_consumer_thread(void *arg);
-static void *ipc_monitor_thread(void *arg);
+static void *ipc_broadcaster_thread(void *arg);
 
 static void sigHandler(int sig) {
     (void)sig;
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
     pthread_t rt_thread_id;
     pthread_t ipc_responder_thread_id;
     pthread_t ipc_consumer_thread_id;
-    pthread_t ipc_monitor_thread_id;
+    pthread_t ipc_broadcaster_thread_id;
     int rtPriority = -1;
     CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
     CO_ReturnError_t err;
@@ -386,8 +386,8 @@ int main(int argc, char *argv[]) {
                 CO_endProgram = 1;
                 continue;
             }
-            if (pthread_create(&ipc_monitor_thread_id, NULL, ipc_monitor_thread, NULL) != 0) {
-                log_printf(LOG_CRIT, DBG_ERRNO, "pthread_create(ipc_monitor_thread)");
+            if (pthread_create(&ipc_broadcaster_thread_id, NULL, ipc_broadcaster_thread, NULL) != 0) {
+                log_printf(LOG_CRIT, DBG_ERRNO, "pthread_create(ipc_broadcaster_thread)");
                 programExit = EXIT_FAILURE;
                 CO_endProgram = 1;
                 continue;
@@ -442,7 +442,7 @@ int main(int argc, char *argv[]) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
         exit(EXIT_FAILURE);
     }
-    if (pthread_join(ipc_monitor_thread_id, NULL) != 0) {
+    if (pthread_join(ipc_broadcaster_thread_id, NULL) != 0) {
         log_printf(LOG_CRIT, DBG_ERRNO, "pthread_join()");
         exit(EXIT_FAILURE);
     }
@@ -498,10 +498,10 @@ static void *ipc_consumer_thread(void *arg) {
     return NULL;
 }
 
-static void *ipc_monitor_thread(void *arg) {
+static void *ipc_broadcaster_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_monitor_process();
+        ipc_broadcaster_process();
     }
     return NULL;
 }

@@ -54,7 +54,7 @@ class Message:
             elif fmt == DYN_STR_FMT:
                 size = int.from_bytes(raw[offset : offset + DYN_FMT_SIZE], "little")
                 offset += DYN_FMT_SIZE
-                values += (raw[offset : offset + size].decode("utf-8"),)
+                values += (raw[offset : offset + size].decode("utf-8").strip(),)
                 offset += size
             else:
                 size = struct.calcsize("<" + fmt)

@@ -6,7 +6,8 @@
 #include <stdint.h>
 
 int ipc_conumer_init(void *context);
-void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config, bool *reset);
+void ipc_consumer_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config_t *config, char *od_config_path,
+                          bool *reset);
 void ipc_conumer_free(void);
 
 #endif

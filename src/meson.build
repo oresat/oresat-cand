@@ -1,7 +1,7 @@
 subdir('common')
 subdir('canopenlinux')
-subdir('ipc')
 subdir('od_extensions')
+subdir('ipc')
 
 libcand_files = [
   'load_configs.c',
@@ -20,8 +20,8 @@ libcand = shared_library(
     dependency('threads'),
     libcommon_dep,
     libcanopenlinux_dep,
-    libipc_dep,
     libodextensions_dep,
+    libipc_dep,
   ],
   install: false,
   c_args: [
