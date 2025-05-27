@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass
@@ -229,7 +230,7 @@ class NodeClientBase:
         if isinstance(config_path, str):
             config_path = Path(config_path)
         path = str(config_path.absolute())
-        self._broadcast(ConfigMessage(path))
+        self._broadcast(ConfigMessage(path.encode()))
 
 
 class NodeClient(NodeClientBase):
@@ -257,7 +258,7 @@ class ManagerNodeClient(NodeClientBase):
     def sdo_list_files(self, node_id: Enum) -> list[str]:
         req_msg = SdoListFilesMessage(node_id.value)
         res_msg = self._send_and_recv(req_msg)
-        return res_msg.files
+        return json.dumps(res_msg.files)
 
     def sdo_write_raw(self, node_id: int, index: int, subindex: int, raw: bytes):
         req_msg = SdoWriteMessage(node_id, index, subindex, raw)

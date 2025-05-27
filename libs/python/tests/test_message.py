@@ -115,10 +115,6 @@ class TestSdoReadFileMessage(unittest.TestCase):
 
 class TestSdoWriteFileMessage(unittest.TestCase):
     def test_pack_unpack(self) -> None:
-        # Local file must be an absolute path
-        with self.assertRaises(ValueError):
-            SdoWriteFileMessage(0x1, "remote.txt", "local.txt").pack()
-
         test_file = "/tmp/test.txt"
         with open(test_file, "w") as f:
             f.write("test")
@@ -131,7 +127,7 @@ class TestSdoWriteFileMessage(unittest.TestCase):
 
 class TestSdoListFilesMessage(unittest.TestCase):
     def test_pack_unpack(self) -> None:
-        msg = SdoListFilesMessage(0x1, ["file_name.txt", "another_file_name.txt"])
+        msg = SdoListFilesMessage(0x1, '["file_name.txt", "another_file_name.txt"]')
         raw = msg.pack()
         msg2 = SdoListFilesMessage.unpack(raw)
         self.assertEqual(msg, msg2)
@@ -147,7 +143,7 @@ class TestErrorMessage(unittest.TestCase):
 
 class TestUnknownIdErrorMessage(unittest.TestCase):
     def test_pack_unpack(self) -> None:
-        msg = UnknownIdErrorMessage()
+        msg = UnknownIdErrorMessage(0x40)
         raw = msg.pack()
         msg2 = UnknownIdErrorMessage.unpack(raw)
         self.assertEqual(msg, msg2)

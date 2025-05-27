@@ -29,8 +29,8 @@ class TestDataEntry(Entry):
     ENTRY_FLOAT64 = 0x6000, 0x6, DataType.FLOAT64, 1.0
     ENTRY_STR = 0x6000, 0x7, DataType.STR, ""
     ENTRY_STR_2 = 0x6000, 0x8, DataType.STR, "123"
-    ENTRY_OCTET_STR = 0x6000, 0x9, DataType.OCTET_STR, b""
-    ENTRY_OCTET_STR_2 = 0x6000, 0xA, DataType.OCTET_STR, b"\x01"
+    ENTRY_BYTES = 0x6000, 0x9, DataType.BYTES, b""
+    ENTRY_BYTES_2 = 0x6000, 0xA, DataType.BYTES, b"\x01"
     ENTRY_DOMAIN = 0x6000, 0xB, DataType.DOMAIN, None
     ENTRY_BOOL = 0x6000, 0xC, DataType.BOOL, True
     ENTRY_BOOL_2 = 0x6000, 0xD, DataType.BOOL, 1
