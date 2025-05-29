@@ -27,6 +27,7 @@ project_target = executable(
     libcanopenlinux,
     libcommon,
     libodextensions,
+    libipc,
     libcand,
   ],
   dependencies: [
@@ -34,6 +35,7 @@ project_target = executable(
     libcommon_dep,
     libcanopenlinux_dep,
     libodextensions_dep,
+    libipc_dep,
     libcand_dep,
   ],
   install: true,

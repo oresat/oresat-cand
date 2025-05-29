@@ -6,9 +6,9 @@
 #include "fcache.h"
 #include "file_transfer_ext.h"
 #include "ipc.h"
-#include "ipc_broadcaster.h"
-#include "ipc_consumer.h"
-#include "ipc_responder.h"
+#include "ipc_broadcast.h"
+#include "ipc_consume.h"
+#include "ipc_respond.h"
 #include "load_configs.h"
 #include "logger.h"
 #include "os_command_ext.h"
@@ -48,6 +48,7 @@
 
 #define MAIN_THREAD_INTERVAL_US 100000
 #define TMR_THREAD_INTERVAL_US  1000
+#define BUS_CHECK_INTERVAL_S 5
 
 #define NMT_CONTROL \
     (CO_NMT_STARTUP_TO_OPERATIONAL | CO_NMT_ERR_ON_ERR_REG | CO_ERR_REG_GENERIC_ERR | CO_ERR_REG_COMMUNICATION)
@@ -65,6 +66,8 @@ static fcache_t *fwrite_cache = NULL;
 static uint8_t node_id = DEFAULT_NODE_ID;
 static CO_epoll_t ep_rt;
 static volatile sig_atomic_t CO_endProgram = 0;
+static char od_path[256] = {0};
+static char node_path[256] = {0};
 
 static void *rt_thread(void *arg);
 static void *ipc_responder_thread(void *arg);
@@ -164,8 +167,6 @@ int main(int argc, char *argv[]) {
     char can_interface[20] = DEFAULT_CAN_INTERFACE;
     bool loaded_od_conf = false;
     bool network_manager_node = false;
-    char od_path[256] = {0};
-    char node_path[256] = {0};
 
     get_default_node_config_path(node_path, 256);
     get_default_od_config_path(od_path, 256);
@@ -419,7 +420,7 @@ int main(int argc, char *argv[]) {
 
             static uint32_t last_check = 0;
             uint32_t uptime_s = get_uptime_s();
-            if (uptime_s != last_check) {
+            if (uptime_s > (last_check + BUS_CHECK_INTERVAL_S)) {
                 ipc_broadcast_bus_status(co);
                 last_check = uptime_s;
             }
@@ -481,7 +482,7 @@ static void *rt_thread(void *arg) {
 static void *ipc_responder_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_responder_process(co, od, &config, fread_cache);
+        ipc_respond_process(co, od, &config, fread_cache);
     }
     return NULL;
 }
@@ -490,7 +491,7 @@ static void *ipc_consumer_thread(void *arg) {
     (void)arg;
     bool ipc_reset = false;
     while (CO_endProgram == 0) {
-        ipc_consumer_process(co, od, &base_config, &config, &ipc_reset);
+        ipc_consume_process(co, od, &base_config, &config, od_path, &ipc_reset);
         if (ipc_reset) {
             CO_endProgram = 1;
         }
@@ -501,7 +502,7 @@ static void *ipc_consumer_thread(void *arg) {
 static void *ipc_broadcaster_thread(void *arg) {
     (void)arg;
     while (CO_endProgram == 0) {
-        ipc_broadcaster_process();
+        ipc_broadcast_process();
     }
     return NULL;
 }

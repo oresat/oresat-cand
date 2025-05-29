@@ -3,12 +3,15 @@
 
 #include <stdint.h>
 
-#define IPC_MSG_VERSION 0 // only increase on breaking changes
+#define IPC_MSG_ID_LEN sizeof(uint8_t)
+
+#define IPC_MSG_VERSION     0 // only increase on breaking changes
+#define IPC_MSG_VERSION_LEN sizeof(uint8_t)
 
 #define IPC_MSG_MAX_LEN 1000
 
 #define str_len_t       uint8_t
-#define IPC_STR_MAX_LEN (sizeof(str_len_t) * 0xFF)
+#define IPC_STR_MAX_LEN ((1 << sizeof(str_len_t)) - 1)
 
 typedef enum {
     IPC_MSG_ID_EMCY_SEND = 0x0,
@@ -21,10 +24,9 @@ typedef enum {
     IPC_MSG_ID_EMCY_RECV = 0x7,
     IPC_MSG_ID_SYNC_SEND = 0x8,
     IPC_MSG_ID_BUS_STATUS = 0x9,
-    IPC_MSG_ID_SDO_READ_FILE = 0xA,
-    IPC_MSG_ID_SDO_WRITE_FILE = 0xB,
-    IPC_MSG_ID_SDO_LIST_FILES = 0xC,
-    IPC_MSG_ID_CONFIG = 0xD,
+    IPC_MSG_ID_SDO_READ_TO_FILE = 0xA,
+    IPC_MSG_ID_SDO_WRITE_FROM_FILE = 0xB,
+    IPC_MSG_ID_CONFIG = 0xC,
 } ipc_msg_id_t;
 
 typedef enum {
@@ -32,6 +34,11 @@ typedef enum {
     IPC_MSG_ID_ERROR_UNKNOWN_ID = 0x81,
     IPC_MSG_ID_ERROR_ABORT = 0x82,
 } ipc_msg_id_error_t;
+
+typedef struct __attribute__((packed)) {
+    uint8_t version;
+    uint8_t id;
+} ipc_header_t;
 
 typedef struct __attribute__((packed)) {
     str_len_t len;
@@ -44,38 +51,79 @@ typedef struct __attribute__((packed)) {
 } ipc_str_t;
 
 typedef struct __attribute__((packed)) {
+    ipc_header_t header;
     uint16_t code;
     uint32_t info;
 } ipc_msg_emcy_send_t;
 
 typedef struct __attribute__((packed)) {
+    ipc_header_t header;
+    uint8_t number;
+} ipc_msg_tpdo_send_t;
+
+typedef struct __attribute__((packed)) {
+    ipc_header_t header;
     uint16_t index;
     uint8_t subindex;
     ipc_bytes_t buffer;
 } ipc_msg_od_t;
+#define IPC_MSG_OD_MIN_LEN (offsetof(ipc_msg_od_t, buffer) + sizeof(str_len_t))
 
 typedef struct __attribute__((packed)) {
+    ipc_header_t header;
     uint8_t node_id;
     uint16_t index;
     uint8_t subindex;
     ipc_bytes_t buffer;
 } ipc_msg_sdo_t;
+#define IPC_MSG_SDO_MIN_LEN (offsetof(ipc_msg_sdo_t, buffer) + sizeof(str_len_t))
 
 typedef struct __attribute__((packed)) {
-    uint8_t node_id;
-    uint16_t state;
-} ipc_msg_hb_recv_t;
+    ipc_header_t header;
+    ipc_str_t path;
+} ipc_msg_file_t;
+#define IPC_MSG_FILE_MIN_LEN (offsetof(ipc_msg_file_t, path) + sizeof(str_len_t))
 
 typedef struct __attribute__((packed)) {
+    ipc_header_t header;
+    uint8_t state;
+} ipc_msg_bus_status_t;
+
+typedef struct __attribute__((packed)) {
+    ipc_header_t header;
     uint8_t node_id;
-    uint16_t state;
+    uint16_t index;
+    uint8_t subindex;
+    ipc_str_t path;
+} ipc_msg_sdo_file_t;
+#define IPC_MSG_SDO_FILE_MIN_LEN (offsetof(ipc_msg_sdo_file_t, path) + sizeof(str_len_t))
+
+typedef struct __attribute__((packed)) {
+    ipc_header_t header;
+    uint8_t node_id;
     uint16_t code;
     uint32_t info;
 } ipc_msg_emcy_recv_t;
 
 typedef struct __attribute__((packed)) {
+    ipc_header_t header;
     uint8_t node_id;
-    ipc_str_t files;
-} ipc_msg_sdo_list_files_t;
+    uint8_t state;
+} ipc_msg_hb_recv_t;
+
+typedef struct __attribute__((packed)) {
+    ipc_header_t header;
+    uint8_t error;
+} ipc_msg_error_t;
+
+typedef struct __attribute__((packed)) {
+    ipc_header_t header;
+    uint8_t id;
+} ipc_msg_error_id_t;
+
+typedef struct __attribute__((packed)) {
+    ipc_header_t header;
+    uint32_t code;
+} ipc_msg_error_abort_t;
 
 #endif
