@@ -10,10 +10,9 @@ from oresat_cand.message import (
     ErrorMessage,
     HbRecvMessage,
     OdWriteMessage,
-    SdoListFilesMessage,
-    SdoReadFileMessage,
     SdoReadMessage,
-    SdoWriteFileMessage,
+    SdoReadToFileMessage,
+    SdoWriteFromFileMessage,
     SdoWriteMessage,
     SyncSendMessage,
     TpdoSendMessage,
@@ -107,9 +106,9 @@ class TestBusStateMessage(unittest.TestCase):
 
 class TestSdoReadFileMessage(unittest.TestCase):
     def test_pack_unpack(self) -> None:
-        msg = SdoReadFileMessage(0x1, "remote.txt", "local.txt")
+        msg = SdoReadToFileMessage(0x1, "remote.txt")
         raw = msg.pack()
-        msg2 = SdoReadFileMessage.unpack(raw)
+        msg2 = SdoReadToFileMessage.unpack(raw)
         self.assertEqual(msg, msg2)
 
 
@@ -118,19 +117,11 @@ class TestSdoWriteFileMessage(unittest.TestCase):
         test_file = "/tmp/test.txt"
         with open(test_file, "w") as f:
             f.write("test")
-        msg = SdoWriteFileMessage(0x1, "remote.txt", test_file)
+        msg = SdoWriteFromFileMessage(0x1, test_file)
         raw = msg.pack()
-        msg2 = SdoWriteFileMessage.unpack(raw)
+        msg2 = SdoWriteFromFileMessage.unpack(raw)
         self.assertEqual(msg, msg2)
         os.remove(test_file)
-
-
-class TestSdoListFilesMessage(unittest.TestCase):
-    def test_pack_unpack(self) -> None:
-        msg = SdoListFilesMessage(0x1, '["file_name.txt", "another_file_name.txt"]')
-        raw = msg.pack()
-        msg2 = SdoListFilesMessage.unpack(raw)
-        self.assertEqual(msg, msg2)
 
 
 class TestErrorMessage(unittest.TestCase):

@@ -145,36 +145,26 @@ class BusStateMessage(Message):
 
 
 @dataclass
-class SdoReadFileMessage(Message):
-    _fmt: ClassVar[list[str]] = ["B", DYN_STR_FMT, DYN_STR_FMT]
+class SdoReadToFileMessage(Message):
+    _fmt: ClassVar[list[str]] = ["B", DYN_STR_FMT]
     id: ClassVar[int] = 0xA
     node_id: int
-    remote_file_path: str
-    local_file_path: str
+    file_path: str
 
 
 @dataclass
-class SdoWriteFileMessage(Message):
-    _fmt: ClassVar[list[str]] = ["B", DYN_STR_FMT, DYN_STR_FMT]
+class SdoWriteFromFileMessage(Message):
+    _fmt: ClassVar[list[str]] = ["B", DYN_STR_FMT]
     id: ClassVar[int] = 0xB
     node_id: int
-    remote_file_path: str
-    local_file_path: str
-
-
-@dataclass
-class SdoListFilesMessage(Message):
-    _fmt: ClassVar[list[str]] = ["B", DYN_STR_FMT]
-    id: ClassVar[int] = 0xC
-    node_id: int
-    files: str = ""
+    file_path: str
 
 
 @dataclass
 class ConfigMessage(Message):
-    _fmt: ClassVar[list[str]] = ["p"]
-    id: ClassVar[int] = 0xD
-    file: bytes
+    _fmt: ClassVar[list[str]] = [DYN_STR_FMT]
+    id: ClassVar[int] = 0xC
+    file: str
 
 
 @dataclass
