@@ -10,8 +10,8 @@
 
 #define IPC_MSG_MAX_LEN 1000
 
-#define str_len_t       uint8_t
-#define IPC_STR_MAX_LEN ((1 << sizeof(str_len_t)) - 1)
+#define ipc_str_len_t   uint8_t
+#define IPC_STR_MAX_LEN ((1 << (sizeof(ipc_str_len_t) * 8)) - 1)
 
 typedef enum {
     IPC_MSG_ID_EMCY_SEND = 0x0,
@@ -41,12 +41,12 @@ typedef struct __attribute__((packed)) {
 } ipc_header_t;
 
 typedef struct __attribute__((packed)) {
-    str_len_t len;
+    ipc_str_len_t len;
     uint8_t data[IPC_STR_MAX_LEN];
 } ipc_bytes_t;
 
 typedef struct __attribute__((packed)) {
-    str_len_t len;
+    ipc_str_len_t len;
     char data[IPC_STR_MAX_LEN];
 } ipc_str_t;
 
@@ -67,7 +67,7 @@ typedef struct __attribute__((packed)) {
     uint8_t subindex;
     ipc_bytes_t buffer;
 } ipc_msg_od_t;
-#define IPC_MSG_OD_MIN_LEN (offsetof(ipc_msg_od_t, buffer) + sizeof(str_len_t))
+#define IPC_MSG_OD_MIN_LEN (offsetof(ipc_msg_od_t, buffer) + sizeof(ipc_str_len_t))
 
 typedef struct __attribute__((packed)) {
     ipc_header_t header;
@@ -76,13 +76,13 @@ typedef struct __attribute__((packed)) {
     uint8_t subindex;
     ipc_bytes_t buffer;
 } ipc_msg_sdo_t;
-#define IPC_MSG_SDO_MIN_LEN (offsetof(ipc_msg_sdo_t, buffer) + sizeof(str_len_t))
+#define IPC_MSG_SDO_MIN_LEN (offsetof(ipc_msg_sdo_t, buffer) + sizeof(ipc_str_len_t))
 
 typedef struct __attribute__((packed)) {
     ipc_header_t header;
     ipc_str_t path;
 } ipc_msg_file_t;
-#define IPC_MSG_FILE_MIN_LEN (offsetof(ipc_msg_file_t, path) + sizeof(str_len_t))
+#define IPC_MSG_FILE_MIN_LEN (offsetof(ipc_msg_file_t, path) + sizeof(ipc_str_len_t))
 
 typedef struct __attribute__((packed)) {
     ipc_header_t header;
@@ -96,7 +96,7 @@ typedef struct __attribute__((packed)) {
     uint8_t subindex;
     ipc_str_t path;
 } ipc_msg_sdo_file_t;
-#define IPC_MSG_SDO_FILE_MIN_LEN (offsetof(ipc_msg_sdo_file_t, path) + sizeof(str_len_t))
+#define IPC_MSG_SDO_FILE_MIN_LEN (offsetof(ipc_msg_sdo_file_t, path) + sizeof(ipc_str_len_t))
 
 typedef struct __attribute__((packed)) {
     ipc_header_t header;

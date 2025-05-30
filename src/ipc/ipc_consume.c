@@ -46,6 +46,11 @@ void ipc_consume_process(CO_t *co, OD_t *od, CO_config_t *base_config, CO_config
         return;
     }
 
+    if (buffer_in[0] != IPC_MSG_VERSION) {
+        log_error("expected ipc protocal version %d not %d", IPC_MSG_VERSION, buffer_in[0]);
+        return;
+    }
+
     uint32_t buffer_in_recv = nbytes;
     switch (buffer_in[1]) {
     case IPC_MSG_ID_EMCY_SEND:
@@ -77,7 +82,7 @@ void ipc_consume_free(void) {
 
 static void ipc_consume_emcy_send(uint8_t *buffer_in, uint32_t buffer_in_recv, CO_t *co) {
     if (buffer_in_recv != sizeof(ipc_msg_emcy_send_t)) {
-        log_error("msg len mismatch; got %d expect %d", buffer_in_recv, sizeof(ipc_msg_emcy_send_t));
+        log_error("emcy send msg len mismatch; got %d expect %d", buffer_in_recv, sizeof(ipc_msg_emcy_send_t));
         return;
     }
     ipc_msg_emcy_send_t *msg_emcy_send = (ipc_msg_emcy_send_t *)buffer_in;
@@ -88,7 +93,7 @@ static void ipc_consume_emcy_send(uint8_t *buffer_in, uint32_t buffer_in_recv, C
 static void ipc_consume_tpdo_send(uint8_t *buffer_in, uint32_t buffer_in_recv, CO_t *co, CO_config_t *base_config,
                                   CO_config_t *config) {
     if (buffer_in_recv != sizeof(ipc_msg_tpdo_send_t)) {
-        log_error("msg len mismatch; got %d expect %d", buffer_in_recv, sizeof(ipc_msg_tpdo_send_t));
+        log_error("tpdo send msg len mismatch; got %d expect %d", buffer_in_recv, sizeof(ipc_msg_tpdo_send_t));
         return;
     }
     ipc_msg_tpdo_send_t *msg_tpdo_send = (ipc_msg_tpdo_send_t *)buffer_in;
@@ -106,11 +111,11 @@ static void ipc_consume_tpdo_send(uint8_t *buffer_in, uint32_t buffer_in_recv, C
 
 static void ipc_consume_od_write(uint8_t *buffer_in, uint32_t buffer_in_recv, OD_t *od) {
     if ((buffer_in_recv < IPC_MSG_OD_MIN_LEN) || (buffer_in_recv > sizeof(ipc_msg_od_t))) {
-        log_error("msg len mismatch; got %d, expect between %d to %d",
-                   buffer_in_recv, IPC_MSG_OD_MIN_LEN, sizeof(ipc_msg_od_t));
+        log_error("od write msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_OD_MIN_LEN,
+                  sizeof(ipc_msg_od_t));
         return;
     }
-    ipc_msg_od_t *msg_od = (ipc_msg_od_t *)&buffer_in;
+    ipc_msg_od_t *msg_od = (ipc_msg_od_t *)buffer_in;
     log_debug("od write index 0x%X subindex 0x%X", msg_od->index, msg_od->subindex);
     OD_entry_t *entry = OD_find(od, msg_od->index);
     OD_set_value(entry, msg_od->subindex, msg_od->buffer.data, msg_od->buffer.len, ipc_clients_count() <= 1);
@@ -127,12 +132,12 @@ static void ipc_consume_sync_send(CO_t *co, CO_config_t *config) {
 
 static void ipc_consume_config(uint8_t *buffer_in, uint32_t buffer_in_recv, char *od_config_path, bool *reset) {
     if ((buffer_in_recv < IPC_MSG_FILE_MIN_LEN) || (buffer_in_recv > sizeof(ipc_msg_file_t))) {
-        log_error("msg len mismatch; got %d, expect between %d to %d",
-                   buffer_in_recv, IPC_MSG_FILE_MIN_LEN, sizeof(ipc_msg_file_t));
+        log_error("config msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_FILE_MIN_LEN,
+                  sizeof(ipc_msg_file_t));
         return;
     }
 
-    ipc_msg_file_t *msg_file = (ipc_msg_file_t *)&buffer_in;
+    ipc_msg_file_t *msg_file = (ipc_msg_file_t *)buffer_in;
     msg_file->path.data[msg_file->path.len] = '\0';
     if (is_file(msg_file->path.data)) {
         int r;

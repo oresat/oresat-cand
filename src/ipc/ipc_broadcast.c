@@ -94,15 +94,17 @@ static ODR_t ipc_broadcast_data(OD_stream_t *stream, const void *buf, OD_size_t 
     ODR_t ac = OD_writeOriginal(stream, buf, count, countWritten);
     if ((ac == ODR_OK) && (stream->dataLength > 0) && (stream->dataLength <= IPC_STR_MAX_LEN)) {
         ipc_msg_od_t msg_od = {
-            .header = {
-                .version = IPC_MSG_VERSION,
-                .id = IPC_MSG_ID_OD_WRITE,
-            },
+            .header =
+                {
+                    .version = IPC_MSG_VERSION,
+                    .id = IPC_MSG_ID_OD_WRITE,
+                },
             .index = stream->index,
             .subindex = stream->subIndex,
-            .buffer = {
-                .len = stream->dataLength,
-            },
+            .buffer =
+                {
+                    .len = stream->dataLength,
+                },
         };
         memcpy(&msg_od.buffer.data, buf, stream->dataLength);
         zmq_send(broadcaster, &msg_od, IPC_MSG_OD_MIN_LEN + stream->dataLength, 0);
@@ -116,10 +118,11 @@ void ipc_broadcast_hb(uint8_t node_id, uint8_t state) {
         return;
     }
     ipc_msg_hb_recv_t msg_hb_recv = {
-        .header = {
-            .version = IPC_MSG_VERSION,
-            .id = IPC_MSG_ID_HB_RECV,
-        },
+        .header =
+            {
+                .version = IPC_MSG_VERSION,
+                .id = IPC_MSG_ID_HB_RECV,
+            },
         .node_id = node_id,
         .state = state,
     };
@@ -131,10 +134,11 @@ void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
         return;
     }
     ipc_msg_emcy_recv_t msg_emcy_recv = {
-        .header = {
-            .version = IPC_MSG_VERSION,
-            .id = IPC_MSG_ID_EMCY_RECV,
-        },
+        .header =
+            {
+                .version = IPC_MSG_VERSION,
+                .id = IPC_MSG_ID_EMCY_RECV,
+            },
         .node_id = node_id,
         .code = code,
         .info = info,
@@ -144,10 +148,11 @@ void ipc_broadcast_emcy(uint8_t node_id, uint16_t code, uint32_t info) {
 
 static void ipc_broadcast_status(uint8_t state) {
     ipc_msg_bus_status_t msg_bus_status = {
-        .header = {
-            .version = IPC_MSG_VERSION,
-            .id = IPC_MSG_ID_BUS_STATUS,
-        },
+        .header =
+            {
+                .version = IPC_MSG_VERSION,
+                .id = IPC_MSG_ID_BUS_STATUS,
+            },
         .state = state,
     };
     zmq_send(broadcaster, &msg_bus_status, sizeof(ipc_msg_bus_status_t), 0);

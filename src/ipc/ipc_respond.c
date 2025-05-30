@@ -16,8 +16,10 @@ static uint32_t ipc_respond_sdo_read(uint8_t *buffer_in, uint32_t buffer_in_recv
 static uint32_t ipc_respond_sdo_write(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co);
 static uint32_t ipc_respond_add_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
                                      fcache_t *fread_cache);
-static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co);
-static uint32_t ipc_respond_sdo_write_from_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co);
+static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
+                                             CO_t *co);
+static uint32_t ipc_respond_sdo_write_from_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
+                                                CO_t *co);
 
 int ipc_respond_init(void *context) {
     if (!context) {
@@ -34,7 +36,6 @@ void ipc_respond_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *frea
         log_error("null arg");
         return;
     }
-
 
     zmq_msg_t msg;
     int r = zmq_msg_init(&msg);
@@ -125,7 +126,7 @@ void ipc_respond_process(CO_t *co, OD_t *od, CO_config_t *config, fcache_t *frea
         ipc_msg_error_t *msg_error = (ipc_msg_error_t *)buffer_out;
         msg_error->header.version = IPC_MSG_VERSION;
         msg_error->header.id = IPC_MSG_ID_ERROR;
-        msg_error->error = EINVAL,
+        msg_error->error = EINVAL;
         buffer_out_send = sizeof(ipc_msg_error_t);
     }
 
@@ -160,13 +161,13 @@ static uint32_t ipc_respond_sdo_read(uint8_t *buffer_in, uint32_t buffer_in_recv
     }
 
     uint32_t buffer_out_send = 0;
-    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)&buffer_in[IPC_MSG_ID_LEN];
+    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)&buffer_in;
     log_debug("sdo read node 0x%X index 0x%X subindex 0x%X", msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex);
 
     void *data = NULL;
     size_t data_len = 0;
-    CO_SDO_abortCode_t ac = sdo_read_dynamic(co->SDOclient, msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex,
-            &data, &data_len, false);
+    CO_SDO_abortCode_t ac =
+        sdo_read_dynamic(co->SDOclient, msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex, &data, &data_len, false);
     if (ac == CO_SDO_AB_NONE) {
         if (data == NULL) {
             memcpy(buffer_out, buffer_in, buffer_in_recv);
@@ -197,10 +198,11 @@ static uint32_t ipc_respond_sdo_write(uint8_t *buffer_in, uint32_t buffer_in_rec
     }
 
     uint32_t buffer_out_send = 0;
-    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)&buffer_in[IPC_MSG_VERSION_LEN];
+    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)&buffer_in;
     log_debug("sdo write node 0x%X index 0x%X subindex 0x%X", msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex);
 
-    CO_SDO_abortCode_t ac = sdo_write(co->SDOclient, msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex, msg_sdo->buffer.data, msg_sdo->buffer.len);
+    CO_SDO_abortCode_t ac = sdo_write(co->SDOclient, msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex,
+                                      msg_sdo->buffer.data, msg_sdo->buffer.len);
     if (ac == CO_SDO_AB_NONE) {
         memcpy(buffer_out, buffer_in, buffer_in_recv);
         buffer_out_send = buffer_in_recv;
@@ -222,10 +224,10 @@ static uint32_t ipc_respond_add_file(uint8_t *buffer_in, uint32_t buffer_in_recv
     }
 
     uint32_t buffer_out_send = 0;
-    ipc_str_t *ipc_str =  (ipc_str_t *)&buffer_in[IPC_MSG_VERSION_LEN];
-    ipc_str->data[ipc_str->len] = '\0';
+    ipc_msg_sdo_file_t *msg_sdo_file = (ipc_msg_sdo_file_t *)&buffer_in;
+    msg_sdo_file->path.data[msg_sdo_file->path.len] = '\0';
 
-    int error = fcache_add(fread_cache, ipc_str->data, false);
+    int error = fcache_add(fread_cache, msg_sdo_file->path.data, false);
     if (error) {
         buffer_out_send = buffer_in_recv;
         memcpy(buffer_out, buffer_in, buffer_out_send);
@@ -237,25 +239,26 @@ static uint32_t ipc_respond_add_file(uint8_t *buffer_in, uint32_t buffer_in_recv
     return buffer_out_send;
 }
 
-static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co) {
+static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
+                                             CO_t *co) {
     if (co->SDOclient) {
         log_error("node is not an sdo client");
         return 0;
     }
     if ((buffer_in_recv < IPC_MSG_SDO_FILE_MIN_LEN) || (buffer_in_recv > sizeof(ipc_msg_sdo_file_t))) {
-        log_error("msg len mismatch; got %d, expect between %d to %d",
-                   buffer_in_recv, IPC_MSG_SDO_FILE_MIN_LEN, sizeof(ipc_msg_sdo_file_t));
+        log_error("msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_SDO_FILE_MIN_LEN,
+                  sizeof(ipc_msg_sdo_file_t));
         return 0;
     }
 
     ipc_msg_sdo_file_t *msg_sdo_file = (ipc_msg_sdo_file_t *)buffer_in;
     msg_sdo_file->path.data[msg_sdo_file->path.len] = '\0';
     log_debug("node 0x%X sdo read from index 0x%X subindex 0x%X to file %s", msg_sdo_file->node_id, msg_sdo_file->index,
-            msg_sdo_file->subindex, msg_sdo_file->path.data);
+              msg_sdo_file->subindex, msg_sdo_file->path.data);
 
     uint32_t buffer_out_send;
     CO_SDO_abortCode_t ac = sdo_read_to_file(co->SDOclient, msg_sdo_file->node_id, msg_sdo_file->index,
-            msg_sdo_file->subindex, msg_sdo_file->path.data);
+                                             msg_sdo_file->subindex, msg_sdo_file->path.data);
     if (ac == CO_SDO_AB_NONE) {
         memcpy(buffer_out, buffer_in, buffer_in_recv);
         buffer_out_send = buffer_in_recv;
@@ -265,25 +268,26 @@ static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer
     return buffer_out_send;
 }
 
-static uint32_t ipc_respond_sdo_write_from_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co) {
+static uint32_t ipc_respond_sdo_write_from_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
+                                                CO_t *co) {
     if (co->SDOclient) {
         log_error("node is not an sdo client");
         return 0;
     }
     if ((buffer_in_recv < IPC_MSG_SDO_FILE_MIN_LEN) || (buffer_in_recv > sizeof(ipc_msg_sdo_file_t))) {
-        log_error("msg len mismatch; got %d, expect between %d to %d",
-                   buffer_in_recv, IPC_MSG_SDO_FILE_MIN_LEN, sizeof(ipc_msg_sdo_file_t));
+        log_error("msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_SDO_FILE_MIN_LEN,
+                  sizeof(ipc_msg_sdo_file_t));
         return 0;
     }
 
     ipc_msg_sdo_file_t *msg_sdo_file = (ipc_msg_sdo_file_t *)buffer_in;
     msg_sdo_file->path.data[msg_sdo_file->path.len] = '\0';
-    log_debug("node 0x%X sdo write to index 0x%X subindex 0x%X from file %s", msg_sdo_file->node_id, msg_sdo_file->index,
-            msg_sdo_file->subindex, msg_sdo_file->path.data);
+    log_debug("node 0x%X sdo write to index 0x%X subindex 0x%X from file %s", msg_sdo_file->node_id,
+              msg_sdo_file->index, msg_sdo_file->subindex, msg_sdo_file->path.data);
 
     uint32_t buffer_out_send;
     CO_SDO_abortCode_t ac = sdo_write_from_file(co->SDOclient, msg_sdo_file->node_id, msg_sdo_file->index,
-            msg_sdo_file->subindex, msg_sdo_file->path.data);
+                                                msg_sdo_file->subindex, msg_sdo_file->path.data);
     if (ac == CO_SDO_AB_NONE) {
         memcpy(buffer_out, buffer_in, buffer_in_recv);
         buffer_out_send = buffer_in_recv;
