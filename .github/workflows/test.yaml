@@ -25,7 +25,7 @@ jobs:
       run: |
         sudo apt update -y
         sudo apt install -y libzmq3-dev meson ninja-build ruby-full
-        gem install ceedling
+        sudo gem install ceedling
 
     - name: Setup build
       run: meson setup build
