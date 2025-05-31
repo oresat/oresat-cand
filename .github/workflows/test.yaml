@@ -23,6 +23,7 @@ jobs:
 
     - name: Install dependencies
       run: |
+        sudo apt update -y
         sudo apt install -y libzmq3-dev meson ninja-build ruby-full
         gem install ceedling
 
