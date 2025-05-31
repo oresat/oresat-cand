@@ -27,6 +27,7 @@ jobs:
         sudo apt update -y
         sudo apt install -y libzmq3-dev meson ninja-build ruby-full
         sudo gem install ceedling
+        pip install oresat-configs
 
     - name: Setup build
       run: meson setup build
@@ -40,7 +41,7 @@ jobs:
 
     - name: Install Python dependencies
       working-directory: libs/python
-      run: pip intall .
+      run: pip install .
 
     - name: Run Python unit tests
       working-directory: libs/python
