@@ -46,3 +46,7 @@ jobs:
     - name: Run Python unit tests
       working-directory: libs/python
       run: python -m unittest
+
+    - name: Print meson logs on failure
+      if: failure()
+      run: cat build/meson-logs/meson-log.txt
