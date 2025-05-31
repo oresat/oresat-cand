@@ -2,7 +2,6 @@ import os
 import unittest
 
 from oresat_cand.message import (
-    AbortErrorMessage,
     AddFileMessage,
     BusStateMessage,
     EmcyRecvMessage,
@@ -10,6 +9,7 @@ from oresat_cand.message import (
     ErrorMessage,
     HbRecvMessage,
     OdWriteMessage,
+    SdoAbortErrorMessage,
     SdoReadMessage,
     SdoReadToFileMessage,
     SdoWriteFromFileMessage,
@@ -142,7 +142,7 @@ class TestUnknownIdErrorMessage(unittest.TestCase):
 
 class TestAbortErrorMessage(unittest.TestCase):
     def test_pack_unpack(self) -> None:
-        msg = AbortErrorMessage(0x1234)
+        msg = SdoAbortErrorMessage(0x1234)
         raw = msg.pack()
-        msg2 = AbortErrorMessage.unpack(raw)
+        msg2 = SdoAbortErrorMessage.unpack(raw)
         self.assertEqual(msg, msg2)

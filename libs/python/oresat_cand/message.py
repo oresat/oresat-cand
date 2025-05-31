@@ -4,6 +4,8 @@ import struct
 from dataclasses import astuple, dataclass
 from typing import ClassVar
 
+from oresat_cand.errors import MessagePackCandError, MessageUnpackCandError, MessageVersionCandError
+
 PROTOCAL_VERSION = 0  # Bump on breaking changes to message formats
 PROTOCAL_VERSION_RAW = PROTOCAL_VERSION.to_bytes(1, "little")
 
@@ -22,44 +24,50 @@ class Message:
         raw = PROTOCAL_VERSION_RAW + bytes([self.id])
         values = astuple(self)
         offset = 0
-        for fmt in self._fmt:
-            if fmt == DYN_BYTES_FMT:
-                tmp = values[offset]
-                raw += len(tmp).to_bytes(DYN_FMT_SIZE, "little") + tmp
-                offset += 1
-            elif fmt == DYN_STR_FMT:
-                tmp = values[offset].encode("utf-8")
-                raw += len(tmp).to_bytes(DYN_FMT_SIZE, "little") + tmp
-                offset += 1
-            else:
-                count = len(fmt)
-                raw += struct.pack("<" + fmt, *values[offset : offset + count])
-                offset += count
+        try:
+            for fmt in self._fmt:
+                if fmt == DYN_BYTES_FMT:
+                    tmp = values[offset]
+                    raw += len(tmp).to_bytes(DYN_FMT_SIZE, "little") + tmp
+                    offset += 1
+                elif fmt == DYN_STR_FMT:
+                    tmp = values[offset].encode("utf-8")
+                    raw += len(tmp).to_bytes(DYN_FMT_SIZE, "little") + tmp
+                    offset += 1
+                else:
+                    count = len(fmt)
+                    raw += struct.pack("<" + fmt, *values[offset : offset + count])
+                    offset += count
+        except Exception as e:
+            raise MessagePackCandError(self.__class__.__name__, values, str(e))
         return raw
 
     @classmethod
     def unpack(cls, raw: bytes) -> Message:
         if raw[0] != PROTOCAL_VERSION:
-            raise ValueError(f"protocal version byte must be {PROTOCAL_VERSION}")
+            raise MessageVersionCandError(PROTOCAL_VERSION, raw[0])
         if raw[1] != cls.id:
-            raise ValueError(f"message id byte must be {cls.id}")
-        values = tuple(raw[:2])
+            raise MessageVersionCandError(cls.id, raw[0])
         offset = 2
-        for fmt in cls._fmt:
-            if fmt == DYN_BYTES_FMT:
-                size = int.from_bytes(raw[offset : offset + DYN_FMT_SIZE], "little")
-                offset += DYN_FMT_SIZE
-                values += (raw[offset : offset + size],)
-                offset += size
-            elif fmt == DYN_STR_FMT:
-                size = int.from_bytes(raw[offset : offset + DYN_FMT_SIZE], "little")
-                offset += DYN_FMT_SIZE
-                values += (raw[offset : offset + size].decode("utf-8").strip(),)
-                offset += size
-            else:
-                size = struct.calcsize("<" + fmt)
-                values += struct.unpack("<" + fmt, raw[offset : offset + size])
-                offset += size
+        values = tuple(raw[:offset])
+        try:
+            for fmt in cls._fmt:
+                if fmt == DYN_BYTES_FMT:
+                    size = int.from_bytes(raw[offset : offset + DYN_FMT_SIZE], "little")
+                    offset += DYN_FMT_SIZE
+                    values += (raw[offset : offset + size],)
+                    offset += size
+                elif fmt == DYN_STR_FMT:
+                    size = int.from_bytes(raw[offset : offset + DYN_FMT_SIZE], "little")
+                    offset += DYN_FMT_SIZE
+                    values += (raw[offset : offset + size].decode("utf-8").strip(),)
+                    offset += size
+                else:
+                    size = struct.calcsize("<" + fmt)
+                    values += struct.unpack("<" + fmt, raw[offset : offset + size])
+                    offset += size
+        except Exception as e:
+            raise MessageUnpackCandError(cls.__name__, raw, str(e))
         return cls(*values[2:])
 
 
@@ -182,7 +190,7 @@ class UnknownIdErrorMessage(Message):
 
 
 @dataclass
-class AbortErrorMessage(Message):
+class SdoAbortErrorMessage(Message):
     _fmt: ClassVar[list[str]] = ["I"]
     id: ClassVar[int] = 0x82
     code: int

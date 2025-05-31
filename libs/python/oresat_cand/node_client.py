@@ -12,20 +12,24 @@ import zmq
 from zmq.utils.monitor import recv_monitor_message
 
 from .entry import Entry
+from .errors import GenericCandError, SdoAbortCandError, UnknownIdCandError
 from .message import (
     AddFileMessage,
     BusStateMessage,
     ConfigMessage,
     EmcyRecvMessage,
     EmcySendMessage,
+    ErrorMessage,
     HbRecvMessage,
     OdWriteMessage,
+    SdoAbortErrorMessage,
     SdoReadMessage,
     SdoReadToFileMessage,
     SdoWriteFromFileMessage,
     SdoWriteMessage,
     SyncSendMessage,
     TpdoSendMessage,
+    UnknownIdErrorMessage,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,13 +74,11 @@ class NodeClientBase:
 
         self._command_socket = self._context.socket(zmq.REQ)
         self._command_socket.connect(f"tcp://{addr}:6000")
-        self._command_socket.setsockopt(zmq.RCVTIMEO, self.RECV_TIMEOUT_MS)
-        self._command_socket.setsockopt(zmq.LINGER, 0)
         self._command_socket_lock = Lock()
 
         self._consume_socket = self._context.socket(zmq.SUB)
         self._consume_socket.connect(f"tcp://{addr}:6001")
-        self._consume_socket.setsockopt(zmq.SUBSCRIBE, b"")
+        self._consume_socket.setsockopt(zmq.SUBSCRIBE, b"")  # set no filter
         self._consume_thread = Thread(target=self._consume_thread_run, daemon=True)
         self._consume_thread.start()
 
@@ -167,6 +169,16 @@ class NodeClientBase:
 
             res_msg_raw = self._command_socket.recv()
             logger.debug(f"CLIENT RECV {len(res_msg_raw)}: {res_msg_raw.hex().upper()}")
+
+            if res_msg_raw[1] == ErrorMessage.id:
+                res_msg = ErrorMessage.unpack(res_msg_raw)
+                raise GenericCandError(res_msg.error)
+            if res_msg_raw[1] == UnknownIdErrorMessage.id:
+                res_msg = UnknownIdErrorMessage.unpack(res_msg_raw)
+                raise UnknownIdCandError(res_msg.value)
+            if res_msg_raw[1] == SdoAbortErrorMessage.id:
+                res_msg = SdoAbortErrorMessage.unpack(res_msg_raw)
+                raise SdoAbortCandError(res_msg.code)
 
             res_msg = req_msg.unpack(res_msg_raw)
         except Exception as e:
@@ -272,7 +284,6 @@ class ManagerNodeClient(NodeClientBase):
 
     def sdo_read_raw(self, node_id: int, index: int, subindex: int) -> bytes:
         req_msg = SdoReadMessage(node_id, index, subindex, b"")
-        print(req_msg)
         res_msg = self._send_and_recv(req_msg)
         return res_msg.raw
 
