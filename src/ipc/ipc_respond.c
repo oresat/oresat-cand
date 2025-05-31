@@ -151,17 +151,18 @@ static uint32_t make_sdo_abort_msg(uint8_t *buffer_out, uint32_t abort_code) {
 }
 
 static uint32_t ipc_respond_sdo_read(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co) {
-    if (co->SDOclient) {
+    if (!co->SDOclient) {
         log_error("node is not an sdo client");
         return 0;
     }
-    if (buffer_in_recv == sizeof(ipc_msg_sdo_t)) {
-        log_error("unexpected length for sdo read message: %d", buffer_in_recv);
+    if ((buffer_in_recv < IPC_MSG_SDO_MIN_LEN) || (buffer_in_recv > (int)sizeof(ipc_msg_sdo_t))) {
+        log_error("sdo read msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_FILE_MIN_LEN,
+                  sizeof(ipc_msg_file_t));
         return 0;
     }
 
     uint32_t buffer_out_send = 0;
-    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)&buffer_in;
+    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)buffer_in;
     log_debug("sdo read node 0x%X index 0x%X subindex 0x%X", msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex);
 
     void *data = NULL;
@@ -188,17 +189,18 @@ static uint32_t ipc_respond_sdo_read(uint8_t *buffer_in, uint32_t buffer_in_recv
 }
 
 static uint32_t ipc_respond_sdo_write(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out, CO_t *co) {
-    if (co->SDOclient) {
+    if (!co->SDOclient) {
         log_error("node is not an sdo client");
         return 0;
     }
-    if (buffer_in_recv <= (int)sizeof(ipc_msg_sdo_t)) {
-        log_error("unexpected length for sdo write message: %d", buffer_in_recv);
+    if ((buffer_in_recv < IPC_MSG_SDO_MIN_LEN) || (buffer_in_recv > (int)sizeof(ipc_msg_sdo_t))) {
+        log_error("sdo write msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_FILE_MIN_LEN,
+                  sizeof(ipc_msg_file_t));
         return 0;
     }
 
     uint32_t buffer_out_send = 0;
-    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)&buffer_in;
+    ipc_msg_sdo_t *msg_sdo = (ipc_msg_sdo_t *)buffer_in;
     log_debug("sdo write node 0x%X index 0x%X subindex 0x%X", msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex);
 
     CO_SDO_abortCode_t ac = sdo_write(co->SDOclient, msg_sdo->node_id, msg_sdo->index, msg_sdo->subindex,
@@ -218,13 +220,14 @@ static uint32_t ipc_respond_add_file(uint8_t *buffer_in, uint32_t buffer_in_recv
         log_error("node does not have a fread cache");
         return 0;
     }
-    if (buffer_in_recv > sizeof(ipc_bytes_t)) {
-        log_error("unexpected length for add file message: %d", buffer_in_recv);
+    if ((buffer_in_recv < IPC_MSG_FILE_MIN_LEN) || (buffer_in_recv > (int)sizeof(ipc_msg_file_t))) {
+        log_error("add file msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_FILE_MIN_LEN,
+                  sizeof(ipc_msg_file_t));
         return 0;
     }
 
     uint32_t buffer_out_send = 0;
-    ipc_msg_sdo_file_t *msg_sdo_file = (ipc_msg_sdo_file_t *)&buffer_in;
+    ipc_msg_sdo_file_t *msg_sdo_file = (ipc_msg_sdo_file_t *)buffer_in;
     msg_sdo_file->path.data[msg_sdo_file->path.len] = '\0';
 
     int error = fcache_add(fread_cache, msg_sdo_file->path.data, false);
@@ -241,13 +244,13 @@ static uint32_t ipc_respond_add_file(uint8_t *buffer_in, uint32_t buffer_in_recv
 
 static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
                                              CO_t *co) {
-    if (co->SDOclient) {
+    if (!co->SDOclient) {
         log_error("node is not an sdo client");
         return 0;
     }
     if ((buffer_in_recv < IPC_MSG_SDO_FILE_MIN_LEN) || (buffer_in_recv > sizeof(ipc_msg_sdo_file_t))) {
-        log_error("msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_SDO_FILE_MIN_LEN,
-                  sizeof(ipc_msg_sdo_file_t));
+        log_error("sdo read file msg len mismatch; got %d, expect between %d to %d", buffer_in_recv,
+                  IPC_MSG_SDO_FILE_MIN_LEN, sizeof(ipc_msg_sdo_file_t));
         return 0;
     }
 
@@ -270,13 +273,13 @@ static uint32_t ipc_respond_sdo_read_to_file(uint8_t *buffer_in, uint32_t buffer
 
 static uint32_t ipc_respond_sdo_write_from_file(uint8_t *buffer_in, uint32_t buffer_in_recv, uint8_t *buffer_out,
                                                 CO_t *co) {
-    if (co->SDOclient) {
+    if (!co->SDOclient) {
         log_error("node is not an sdo client");
         return 0;
     }
     if ((buffer_in_recv < IPC_MSG_SDO_FILE_MIN_LEN) || (buffer_in_recv > sizeof(ipc_msg_sdo_file_t))) {
-        log_error("msg len mismatch; got %d, expect between %d to %d", buffer_in_recv, IPC_MSG_SDO_FILE_MIN_LEN,
-                  sizeof(ipc_msg_sdo_file_t));
+        log_error("sdo write file msg len mismatch; got %d, expect between %d to %d", buffer_in_recv,
+                  IPC_MSG_SDO_FILE_MIN_LEN, sizeof(ipc_msg_sdo_file_t));
         return 0;
     }
 

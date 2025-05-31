@@ -113,7 +113,7 @@ typedef struct __attribute__((packed)) {
 
 typedef struct __attribute__((packed)) {
     ipc_header_t header;
-    uint8_t error;
+    int32_t error;
 } ipc_msg_error_t;
 
 typedef struct __attribute__((packed)) {
