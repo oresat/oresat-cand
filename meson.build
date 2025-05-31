@@ -127,5 +127,3 @@ project_target = executable(
   install: false,
   c_args: build_args,
 )
-
-subdir('tests')

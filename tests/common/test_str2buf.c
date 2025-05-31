@@ -174,19 +174,3 @@ void test_str2buf_bytes(void) {
     buf = str2buf_bytes("123", &buf_len);
     assert(buf == NULL);
 }
-
-int main(void) {
-    test_str2buf_bool();
-    test_str2buf_int8();
-    test_str2buf_uint8();
-    test_str2buf_int16();
-    test_str2buf_uint16();
-    test_str2buf_int32();
-    test_str2buf_uint32();
-    test_str2buf_int64();
-    test_str2buf_uint64();
-    test_str2buf_float32();
-    test_str2buf_float64();
-    test_str2buf_bytes();
-    return 0;
-}
