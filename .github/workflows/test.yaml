@@ -41,7 +41,9 @@ jobs:
       run: meson compile
 
     - name: Run Ceedling unit tests
-      run: ceedling test:all
+      run: |
+        mkdir -p tests/support # required dir for Ceedling
+        ceedling test:all
 
     - name: Install Python dependencies
       working-directory: libs/python
