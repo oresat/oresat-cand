@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9"
+
+    - name: Install dependencies
+      run: |
+        sudo apt install -y libzmq3-dev meson ninja-build ruby-full
+        gem install ceedling
+
+    - name: Setup build
+      run: meson setup build
+
+    - name: Build
+      working-directory: build
+      run: meson compile
+
+    - name: Run Ceedling unit tests
+      run: ceedling test:all
+
+    - name: Install Python dependencies
+      working-directory: libs/python
+      run: pip intall .
+
+    - name: Run Python unit tests
+      working-directory: libs/python
+      run: python -m unittest
